@@ -116,7 +116,7 @@ service cloud.firestore {
 
     function isValidCase(data) {
       let required = ['title', 'description', 'status', 'userId', 'createdAt'];
-      let allowed = ['title', 'description', 'status', 'userId', 'createdAt'];
+      let allowed = ['title', 'description', 'status', 'userId', 'createdAt', 'updatedAt'];
       return hasRequiredFields(required) && hasOnlyAllowedFields(allowed) &&
              data.title is string && data.title.size() > 0 && data.title.size() < 200 &&
              data.description is string && data.description.size() < 2000 &&

@@ -263,63 +263,75 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
 
   const handleToggleCaseStatus = async () => {
     if (!caseData) return;
-    const newStatus = caseData.status === 'closed' ? 'open' : 'closed';
+    const newStatus = (caseData.status === 'closed' ? 'open' : 'closed') as 'open' | 'closed';
     const isNowCompleted = newStatus === 'closed';
+
+    // 1. Immediately update component state
+    const updatedCase: Case = { ...caseData, status: newStatus };
+    setCaseData(updatedCase);
+
+    // 2. Immediately update localStorage caches (caseData, dashboard list, docs, analysis)
+    try {
+      localStorage.setItem(`justiceflow_case_data_${caseId}`, JSON.stringify(updatedCase));
+      const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+      if (dashCasesRaw) {
+        const dashCases = JSON.parse(dashCasesRaw);
+        const updatedDash = dashCases.map((c: any) => c.id === caseId ? { ...c, status: newStatus } : c);
+        localStorage.setItem('justiceflow_dashboard_cases', JSON.stringify(updatedDash));
+      }
+      if (documents.length > 0) {
+        localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify(documents));
+      } else if (activeDoc) {
+        localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify([activeDoc]));
+      }
+      if (activeDoc) {
+        localStorage.setItem(`justiceflow_case_activedoc_${caseId}`, JSON.stringify(activeDoc));
+      }
+      if (chatMessages.length > 0) {
+        localStorage.setItem(`justiceflow_case_chats_${caseId}`, JSON.stringify(chatMessages));
+      }
+      if (analysis) {
+        localStorage.setItem(`justiceflow_case_analysis_${caseId}`, JSON.stringify(analysis));
+      }
+    } catch (e) {}
+
+    // 3. Trigger immediate user-facing notification
+    if (isNowCompleted) {
+      setCaseSavedNotification(`🏆 Case "${caseData.title}" marked as Completed & saved in Completed Cases!`);
+      const totalDocsCount = documents.length > 0 ? documents.length : (activeDoc ? 1 : 0);
+      const completionMsg: ChatMessage = {
+        id: 'asst_completed_' + Date.now(),
+        documentId: activeDoc?.id || 'case_' + caseId,
+        role: 'assistant',
+        content: `🏆 **Case Marked as Completed & Saved**: The judicial proceedings for **"${caseData.title}"** have been marked as completed.\n\nAll evidence exhibits (${totalDocsCount} file${totalDocsCount === 1 ? '' : 's'}), forensic analysis, and audit trails are secured in **Completed Cases**.\n\nYou can review this case file at any time from the Dashboard under **Completed Cases**.`,
+        userId: auth.currentUser?.uid || 'demo-judge-001',
+        createdAt: new Date()
+      } as ChatMessage;
+
+      setChatMessages(prev => [...prev, completionMsg]);
+      if (activeDoc) {
+        try {
+          await addDoc(collection(db, 'chats'), {
+            documentId: activeDoc.id,
+            role: 'assistant',
+            content: completionMsg.content,
+            userId: auth.currentUser?.uid || 'demo-judge-001',
+            createdAt: serverTimestamp()
+          });
+        } catch (e) {}
+      }
+    } else {
+      setCaseSavedNotification(`🔄 Case "${caseData.title}" status updated to In Progress.`);
+    }
+    setTimeout(() => setCaseSavedNotification(null), 5000);
+
+    // 4. Persist to Firestore asynchronously
     try {
       await updateDoc(doc(db, 'cases', caseId), { 
-        status: newStatus,
-        updatedAt: serverTimestamp()
+        status: newStatus
       });
-      const updatedCase = { ...caseData, status: newStatus };
-      setCaseData(updatedCase);
-      try {
-        localStorage.setItem(`justiceflow_case_data_${caseId}`, JSON.stringify(updatedCase));
-        if (documents.length > 0) {
-          localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify(documents));
-        } else if (activeDoc) {
-          localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify([activeDoc]));
-        }
-        if (activeDoc) {
-          localStorage.setItem(`justiceflow_case_activedoc_${caseId}`, JSON.stringify(activeDoc));
-        }
-        if (chatMessages.length > 0) {
-          localStorage.setItem(`justiceflow_case_chats_${caseId}`, JSON.stringify(chatMessages));
-        }
-        if (analysis) {
-          localStorage.setItem(`justiceflow_case_analysis_${caseId}`, JSON.stringify(analysis));
-        }
-      } catch (e) {}
-
-      if (isNowCompleted) {
-        setCaseSavedNotification(`🏆 Case "${caseData.title}" marked as Completed & saved in Completed Cases!`);
-        const totalDocsCount = documents.length > 0 ? documents.length : (activeDoc ? 1 : 0);
-        const completionMsg: ChatMessage = {
-          id: 'asst_completed_' + Date.now(),
-          documentId: activeDoc?.id || 'case_' + caseId,
-          role: 'assistant',
-          content: `🏆 **Case Marked as Completed & Saved**: The judicial proceedings for **"${caseData.title}"** have been marked as completed.\n\nAll evidence exhibits (${totalDocsCount} file${totalDocsCount === 1 ? '' : 's'}), forensic analysis, and audit trails are secured in **Completed Cases**.\n\nYou can review this case file at any time from the Dashboard under **Completed Cases**.`,
-          userId: auth.currentUser?.uid || 'demo-judge-001',
-          createdAt: new Date()
-        } as ChatMessage;
-
-        setChatMessages(prev => [...prev, completionMsg]);
-        if (activeDoc) {
-          try {
-            await addDoc(collection(db, 'chats'), {
-              documentId: activeDoc.id,
-              role: 'assistant',
-              content: completionMsg.content,
-              userId: auth.currentUser?.uid || 'demo-judge-001',
-              createdAt: serverTimestamp()
-            });
-          } catch (e) {}
-        }
-      } else {
-        setCaseSavedNotification(`🔄 Case "${caseData.title}" status updated to In Progress.`);
-      }
-      setTimeout(() => setCaseSavedNotification(null), 5000);
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `cases/${caseId}`);
+      console.warn('Firestore status update notice (local state maintained):', error);
     }
   };
 

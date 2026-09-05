@@ -331,11 +331,28 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
 
   const handleToggleCaseStatus = async (e: React.MouseEvent, caseItem: Case) => {
     e.stopPropagation();
-    const newStatus = caseItem.status === 'closed' ? 'open' : 'closed';
+    const newStatus = (caseItem.status === 'closed' ? 'open' : 'closed') as 'open' | 'closed';
+    const updatedCase = { ...caseItem, status: newStatus };
+
+    // 1. Immediately update state so UI changes with 0ms delay
+    setCases(prev => prev.map(c => c.id === caseItem.id ? updatedCase : c));
+
+    // 2. Immediately update local storage
+    try {
+      const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+      if (dashCasesRaw) {
+        const dashCases = JSON.parse(dashCasesRaw);
+        const updatedDash = dashCases.map((c: any) => c.id === caseItem.id ? updatedCase : c);
+        localStorage.setItem('justiceflow_dashboard_cases', JSON.stringify(updatedDash));
+      }
+      localStorage.setItem(`justiceflow_case_data_${caseItem.id}`, JSON.stringify(updatedCase));
+    } catch (err) {}
+
+    // 3. Persist to Firestore asynchronously
     try {
       await updateDoc(doc(db, 'cases', caseItem.id), { status: newStatus });
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `cases/${caseItem.id}`);
+      console.warn('Firestore status update notice (local state maintained):', error);
     }
   };
 
