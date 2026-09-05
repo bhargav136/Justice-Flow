@@ -20,6 +20,7 @@ import LanguageSwitcher from './components/LanguageSwitcher';
 import Dashboard from './components/Dashboard';
 import CaseView from './components/CaseView';
 import ProfileModal from './components/ProfileModal';
+import GlobalAssistant from './components/GlobalAssistant';
 import { UserProfile } from './types';
 
 function cn(...inputs: ClassValue[]) {
@@ -536,6 +537,9 @@ function AppContent() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Global Anywhere AI Guide & Help Assistant */}
+      <GlobalAssistant />
     </div>
   );
 }
