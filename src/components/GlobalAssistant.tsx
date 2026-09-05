@@ -39,7 +39,17 @@ export default function GlobalAssistant() {
   const initialPos = (() => {
     try {
       const saved = localStorage.getItem('justiceflow_guide_pos');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (
+          typeof parsed.x === 'number' && !isNaN(parsed.x) &&
+          typeof parsed.y === 'number' && !isNaN(parsed.y) &&
+          Math.abs(parsed.x) < 2000 &&
+          Math.abs(parsed.y) < 2000
+        ) {
+          return parsed;
+        }
+      }
     } catch (e) {}
     return { x: 0, y: 0 };
   })();
@@ -157,19 +167,8 @@ export default function GlobalAssistant() {
     } catch (err) {}
   };
 
-  const handleDragStart = (e: any, info: any) => {
+  const handleDragStart = () => {
     setIsDragging(true);
-    hasMovedRef.current = false;
-    dragStartPoint.current = { x: info.point.x, y: info.point.y };
-  };
-
-  const handleDrag = (e: any, info: any) => {
-    if (dragStartPoint.current) {
-      const dist = Math.hypot(info.point.x - dragStartPoint.current.x, info.point.y - dragStartPoint.current.y);
-      if (dist > 6) {
-        hasMovedRef.current = true;
-      }
-    }
   };
 
   const handleDragEnd = () => {
@@ -177,15 +176,12 @@ export default function GlobalAssistant() {
     try {
       localStorage.setItem('justiceflow_guide_pos', JSON.stringify({ x: x.get(), y: y.get() }));
     } catch (err) {}
-    setTimeout(() => {
-      hasMovedRef.current = false;
-    }, 150);
   };
 
-  const handleButtonClick = (e: React.MouseEvent) => {
-    if (hasMovedRef.current) {
+  const handleOpenGuide = (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
       e.stopPropagation();
-      return;
     }
     setIsOpen(true);
   };
@@ -210,12 +206,11 @@ export default function GlobalAssistant() {
       style={{ x, y }}
       drag
       dragControls={dragControls}
-      dragListener={!isOpen}
+      dragListener={false}
       dragMomentum={false}
       dragElastic={0.06}
       dragConstraints={dragBounds}
       onDragStart={handleDragStart}
-      onDrag={handleDrag}
       onDragEnd={handleDragEnd}
       className={`fixed bottom-6 right-6 z-[100] ${isDragging ? 'cursor-grabbing select-none' : ''}`}
     >
@@ -228,12 +223,12 @@ export default function GlobalAssistant() {
             exit={{ scale: 0.8, opacity: 0 }}
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
-            onClick={handleButtonClick}
+            onClick={handleOpenGuide}
             onMouseMove={handleMouseMove}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className="group relative flex items-center gap-2.5 pl-2.5 pr-4 py-2.5 rounded-2xl bg-gradient-to-r from-brand-primary via-indigo-950 to-brand-deep text-white shadow-2xl shadow-brand-primary/40 border border-brand-accent/40 hover:border-brand-accent transition-all cursor-grab active:cursor-grabbing select-none"
-            title="Ask JusticeFlow AI Guide • Hold and drag with mouse anywhere"
+            className="group relative flex items-center gap-2 pl-2 pr-4 py-2.5 rounded-2xl bg-gradient-to-r from-brand-primary via-indigo-950 to-brand-deep text-white shadow-2xl shadow-brand-primary/40 border border-brand-accent/40 hover:border-brand-accent transition-all cursor-pointer select-none"
+            title="Ask JusticeFlow AI Guide • Click to open or drag with mouse"
           >
             {/* Interactive Mouse-Follower Glow Effect */}
             {isHovered && (
@@ -258,33 +253,43 @@ export default function GlobalAssistant() {
             )}
 
             {/* Animated Glow Ping */}
-            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
+            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 pointer-events-none">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-accent opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-brand-accent"></span>
             </span>
 
             {/* Dedicated Movable Cursor Handle */}
             <div
-              className="p-1 rounded-lg bg-surface/40 hover:bg-brand-accent/20 text-brand-accent/70 hover:text-brand-accent cursor-grab active:cursor-grabbing transition-colors flex items-center justify-center"
-              title="Movable Cursor: Drag anywhere with mouse"
+              onPointerDown={(e) => {
+                e.stopPropagation();
+                dragControls.start(e);
+              }}
+              className="p-1.5 rounded-xl bg-surface/50 hover:bg-brand-accent/20 text-brand-accent/80 hover:text-brand-accent cursor-grab active:cursor-grabbing transition-colors flex items-center justify-center border border-border-main/50 shadow-sm"
+              title="Movable Handle: Hold and move with mouse anywhere"
             >
               <Move className="w-3.5 h-3.5 text-amber-300" />
             </div>
 
-            <div className="w-8 h-8 rounded-xl bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-accent shrink-0">
-              <Sparkles className="w-4 h-4 text-amber-300" />
-            </div>
-
-            <div className="text-left">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[11px] font-black uppercase tracking-wider text-text-main group-hover:text-brand-accent transition-colors">
-                  Ask AI Guide
-                </span>
-                <span className="text-[8px] px-1 py-0.5 rounded-md bg-brand-accent/20 text-brand-accent font-bold uppercase tracking-wider">
-                  Movable
-                </span>
+            {/* Clickable Area to Open Guide */}
+            <div 
+              onClick={handleOpenGuide}
+              className="flex items-center gap-2.5 cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-xl bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-accent shrink-0">
+                <Sparkles className="w-4 h-4 text-amber-300" />
               </div>
-              <p className="text-[9px] text-text-muted">Drag to move • Click to ask</p>
+
+              <div className="text-left">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-text-main group-hover:text-brand-accent transition-colors">
+                    Ask AI Guide
+                  </span>
+                  <span className="text-[8px] px-1 py-0.5 rounded-md bg-brand-accent/20 text-brand-accent font-bold uppercase tracking-wider">
+                    Movable
+                  </span>
+                </div>
+                <p className="text-[9px] text-text-muted">Drag to move • Click to ask</p>
+              </div>
             </div>
           </motion.div>
         )}
