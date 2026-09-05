@@ -30,12 +30,53 @@ interface CaseViewProps {
 
 export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const { t } = useTranslation();
-  const [caseData, setCaseData] = useState<Case | null>(null);
-  const [documents, setDocuments] = useState<Document[]>([]);
-  const [activeDoc, setActiveDoc] = useState<Document | null>(null);
+  const [caseData, setCaseData] = useState<Case | null>(() => {
+    try {
+      const cached = localStorage.getItem(`justiceflow_case_data_${caseId}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [documents, setDocuments] = useState<Document[]>(() => {
+    try {
+      const cached = localStorage.getItem(`justiceflow_case_docs_${caseId}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [activeDoc, setActiveDoc] = useState<Document | null>(() => {
+    try {
+      const cached = localStorage.getItem(`justiceflow_case_activedoc_${caseId}`);
+      if (cached) return JSON.parse(cached);
+      const docsCached = localStorage.getItem(`justiceflow_case_docs_${caseId}`);
+      if (docsCached) {
+        const parsed = JSON.parse(docsCached);
+        if (parsed.length > 0) return parsed[0];
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  });
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [analysis, setAnalysis] = useState<Analysis | null>(() => {
+    try {
+      const cached = localStorage.getItem(`justiceflow_case_analysis_${caseId}`);
+      return cached ? JSON.parse(cached) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const cached = localStorage.getItem(`justiceflow_case_chats_${caseId}`);
+      return cached ? JSON.parse(cached) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [isChatting, setIsChatting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -58,6 +99,47 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
 
   const effectiveDocuments = documents.length > 0 ? documents : (activeDoc ? [activeDoc] : []);
 
+  // Continuous sync to localStorage for instant recovery & persistence across navigation
+  useEffect(() => {
+    if (caseData) {
+      try {
+        localStorage.setItem(`justiceflow_case_data_${caseId}`, JSON.stringify(caseData));
+      } catch (e) {}
+    }
+  }, [caseData, caseId]);
+
+  useEffect(() => {
+    if (documents.length > 0) {
+      try {
+        localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify(documents));
+      } catch (e) {}
+    }
+  }, [documents, caseId]);
+
+  useEffect(() => {
+    if (activeDoc) {
+      try {
+        localStorage.setItem(`justiceflow_case_activedoc_${caseId}`, JSON.stringify(activeDoc));
+      } catch (e) {}
+    }
+  }, [activeDoc, caseId]);
+
+  useEffect(() => {
+    if (chatMessages.length > 0) {
+      try {
+        localStorage.setItem(`justiceflow_case_chats_${caseId}`, JSON.stringify(chatMessages));
+      } catch (e) {}
+    }
+  }, [chatMessages, caseId]);
+
+  useEffect(() => {
+    if (analysis) {
+      try {
+        localStorage.setItem(`justiceflow_case_analysis_${caseId}`, JSON.stringify(analysis));
+      } catch (e) {}
+    }
+  }, [analysis, caseId]);
+
   useEffect(() => {
     const fetchCase = async () => {
       try {
@@ -76,13 +158,25 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     const unsubDocs = onSnapshot(qDocs, (snapshot) => {
       const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Document));
       setDocuments(prev => {
-        let merged = [...docs];
-        if (activeDoc && !merged.some(d => d.id === activeDoc.id || d.fileName === activeDoc.fileName)) {
-          merged = [activeDoc, ...merged];
+        const map = new Map<string, Document>();
+        prev.forEach(d => map.set(d.id || d.fileName, d));
+        docs.forEach(d => map.set(d.id || d.fileName, d));
+        if (activeDoc) {
+          map.set(activeDoc.id || activeDoc.fileName, activeDoc);
         }
-        return merged.length > 0 ? merged : prev;
+        const mergedList = Array.from(map.values());
+        return mergedList.length > 0 ? mergedList : prev;
       });
-      if (docs.length > 0 && !activeDoc) setActiveDoc(docs[0]);
+      if (!activeDoc) {
+        if (docs.length > 0) {
+          setActiveDoc(docs[0]);
+        } else {
+          try {
+            const cachedActive = localStorage.getItem(`justiceflow_case_activedoc_${caseId}`);
+            if (cachedActive) setActiveDoc(JSON.parse(cachedActive));
+          } catch (e) {}
+        }
+      }
     }, (error) => {
       console.warn('Documents listener notice:', error);
     });
@@ -115,8 +209,6 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
 
   useEffect(() => {
     if (!activeDoc) {
-      setAnalysis(null);
-      setChatMessages([]);
       setPreviewUrl(null);
       return;
     }
@@ -173,7 +265,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         setAnalysis({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Analysis);
       } else {
         // If analysis missing from Firestore and not currently analyzing, trigger analysis
-        if (!analyzingDocId.current && (activeDoc.textContent || activeDoc.fileUrl)) {
+        if (!analysis && !analyzingDocId.current && (activeDoc.textContent || activeDoc.fileUrl)) {
           handleAnalyze(activeDoc, activeDoc.textContent || activeDoc.fileUrl, []);
         }
       }
@@ -185,12 +277,16 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     const unsubChat = onSnapshot(qChat, (snapshot) => {
       if (!snapshot.empty) {
         const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage));
-        msgs.sort((a, b) => {
-          const timeA = a.createdAt?.seconds || (a.createdAt?.toDate ? a.createdAt.toDate().getTime() / 1000 : 0);
-          const timeB = b.createdAt?.seconds || (b.createdAt?.toDate ? b.createdAt.toDate().getTime() / 1000 : 0);
-          return timeA - timeB;
+        setChatMessages(prev => {
+          const map = new Map<string, ChatMessage>();
+          prev.forEach(m => map.set(m.id || `${m.role}_${m.content.slice(0, 30)}`, m));
+          msgs.forEach(m => map.set(m.id || `${m.role}_${m.content.slice(0, 30)}`, m));
+          return Array.from(map.values()).sort((a, b) => {
+            const timeA = (a.createdAt as any)?.seconds || ((a.createdAt as any)?.toDate ? (a.createdAt as any).toDate().getTime() / 1000 : (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0));
+            const timeB = (b.createdAt as any)?.seconds || ((b.createdAt as any)?.toDate ? (b.createdAt as any).toDate().getTime() / 1000 : (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0));
+            return timeA - timeB;
+          });
         });
-        setChatMessages(msgs);
       }
     }, (error) => {
       console.warn('Chats listener notice:', error);
@@ -401,6 +497,38 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     } catch (e) {
       console.warn('Case save notice:', e);
     }
+  };
+
+  const handleBack = async () => {
+    try {
+      if (documents.length > 0) {
+        localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify(documents));
+      } else if (activeDoc) {
+        localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify([activeDoc]));
+      }
+      if (activeDoc) {
+        localStorage.setItem(`justiceflow_case_activedoc_${caseId}`, JSON.stringify(activeDoc));
+      }
+      if (chatMessages.length > 0) {
+        localStorage.setItem(`justiceflow_case_chats_${caseId}`, JSON.stringify(chatMessages));
+      }
+      if (analysis) {
+        localStorage.setItem(`justiceflow_case_analysis_${caseId}`, JSON.stringify(analysis));
+      }
+      if (caseData) {
+        localStorage.setItem(`justiceflow_case_data_${caseId}`, JSON.stringify(caseData));
+      }
+    } catch (e) {
+      console.warn('Local save on back notice:', e);
+    }
+    try {
+      await updateDoc(doc(db, 'cases', caseId), {
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      // offline fallback
+    }
+    onBack();
   };
 
   const handleAnalyze = async (doc: Document, content: string, images?: { data: string, mimeType: string }[]) => {
@@ -794,7 +922,7 @@ ${activeDoc.textContent || activeDoc.fileName}
           <motion.button 
             whileHover={{ x: -2 }}
             whileTap={{ scale: 0.92 }}
-            onClick={onBack} 
+            onClick={handleBack} 
             className="flex items-center gap-2 text-text-muted hover:text-brand-accent transition-all font-semibold uppercase tracking-widest text-[10px]"
           >
             <ArrowLeft className="w-3 h-3" />
