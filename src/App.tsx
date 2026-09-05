@@ -50,6 +50,7 @@ function AppContent() {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -439,9 +440,9 @@ function AppContent() {
             </div>
           </div>
           <button
-            onClick={logOut}
+            onClick={() => setShowSignOutConfirm(true)}
             className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
-            title="Sign Out"
+            title={t('auth.signOut') || 'Sign Out'}
           >
             <LogOut className="w-5 h-5" />
           </button>
@@ -472,6 +473,59 @@ function AppContent() {
           onSave={handleSaveProfile}
         />
       )}
+
+      {/* Sign Out Confirmation Modal */}
+      <AnimatePresence>
+        {showSignOutConfirm && (
+          <div className="fixed inset-0 bg-brand-deep/80 backdrop-blur-md flex items-center justify-center z-[110] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="glass-card rounded-3xl p-8 max-w-md w-full border border-border-main shadow-2xl relative"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+                  <LogOut className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-text-main tracking-tight">
+                    {t('auth.confirmSignOut') || 'Confirm Sign Out'}
+                  </h3>
+                  <p className="text-xs text-text-muted">
+                    {t('auth.tagline') || 'Judicial Intelligence Portal'}
+                  </p>
+                </div>
+              </div>
+
+              <p className="text-xs text-text-muted leading-relaxed mb-6">
+                {t('auth.confirmSignOutDesc') || 'Are you sure you want to end your judicial session? Any open investigations will be safely preserved.'}
+              </p>
+
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowSignOutConfirm(false)}
+                  className="px-5 py-2.5 rounded-xl border border-border-main text-text-muted hover:text-text-main hover:bg-surface/50 text-xs font-semibold uppercase tracking-wider transition-all"
+                >
+                  {t('common.cancel') || 'Cancel'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowSignOutConfirm(false);
+                    logOut();
+                  }}
+                  className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-semibold uppercase tracking-wider shadow-lg shadow-red-500/20 transition-all flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  {t('auth.signOut') || 'Sign Out'}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'motion/react';
 
 const languages = [
   { code: 'en', name: 'English' },
-  { code: 'hi', name: 'हिन्दी' }
+  { code: 'hi', name: 'हिन्दी' },
+  { code: 'te', name: 'తెలుగు' }
 ];
 
 export default function LanguageSwitcher() {

@@ -19,6 +19,8 @@
   "auth": {
     "signIn": "Sign In with Google",
     "signOut": "Sign Out",
+    "confirmSignOut": "Confirm Sign Out",
+    "confirmSignOutDesc": "Are you sure you want to end your judicial session? Any open investigations will be safely preserved.",
     "welcome": "Welcome to JusticeFlow",
     "tagline": "Judicial Intelligence Portal"
   },
@@ -33,7 +35,13 @@
     "initializeFirst": "Initialize your first case to begin forensic analysis.",
     "viewCase": "View Case Details",
     "deleteCase": "Delete Case",
-    "confirmDelete": "Are you sure you want to delete this case? This action is irreversible."
+    "confirmDelete": "Are you sure you want to delete this case? This action is irreversible.",
+    "completed": "Completed",
+    "inProgress": "In Progress",
+    "markCompleted": "Mark as Completed",
+    "markOpen": "Mark as In Progress",
+    "totalLoad": "Total Case Load",
+    "completedCases": "Completed Cases"
   },
   "case": {
     "evidenceVault": "Evidence Vault",

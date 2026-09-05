@@ -4,7 +4,7 @@ import { db, auth, storage, handleFirestoreError, OperationType } from '../fireb
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case } from '../types';
-import { Plus, Folder, Clock, ChevronRight, Trash2, Search, Edit2, Upload, FileText, X, Loader2, ShieldCheck, AlertCircle, Gavel } from 'lucide-react';
+import { Plus, Folder, Clock, ChevronRight, Trash2, Search, Edit2, Upload, FileText, X, Loader2, ShieldCheck, AlertCircle, Gavel, CheckCircle2, CheckSquare, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -219,6 +219,16 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
     }
   };
 
+  const handleToggleCaseStatus = async (e: React.MouseEvent, caseItem: Case) => {
+    e.stopPropagation();
+    const newStatus = caseItem.status === 'closed' ? 'open' : 'closed';
+    try {
+      await updateDoc(doc(db, 'cases', caseItem.id), { status: newStatus });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `cases/${caseItem.id}`);
+    }
+  };
+
   const filteredCases = cases.filter(c => 
     c.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -246,8 +256,9 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: 'Total Case Load', value: cases.length, icon: Folder, color: 'text-brand-accent' },
-          { label: 'Pending Analysis', value: cases.filter(c => c.status === 'open').length, icon: Clock, color: 'text-yellow-500' },
+          { label: t('dashboard.totalLoad') || 'Total Case Load', value: cases.length, icon: Folder, color: 'text-brand-accent' },
+          { label: t('dashboard.inProgress') || 'In Progress', value: cases.filter(c => c.status === 'open').length, icon: Clock, color: 'text-yellow-500' },
+          { label: t('dashboard.completedCases') || 'Completed Cases', value: cases.filter(c => c.status === 'closed').length, icon: CheckCircle2, color: 'text-emerald-400' },
         ].map((stat, i) => (
           <div key={i} className="glass-card p-6 rounded-2xl flex items-center gap-4">
             <div className={`p-3 rounded-xl bg-surface border border-border-main ${stat.color}`}>
@@ -278,12 +289,34 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
             key={c.id}
             layoutId={c.id}
             onClick={() => onSelectCase(c.id)}
-            className="group glass-card p-6 rounded-2xl hover:border-brand-accent/40 transition-all cursor-pointer relative overflow-hidden"
+            className={`group glass-card p-6 rounded-2xl hover:border-brand-accent/40 transition-all cursor-pointer relative overflow-hidden ${
+              c.status === 'closed' ? 'border-emerald-500/30 bg-emerald-500/[0.02]' : ''
+            }`}
           >
             <div className="flex justify-between items-start mb-4 relative z-10">
-              <div className="bg-surface p-3 rounded-xl border border-border-main">
-                <Folder className="w-5 h-5 text-brand-accent" />
+              <div className="flex items-center gap-3">
+                {/* Interactive Checkbox Button */}
+                <button
+                  type="button"
+                  title={c.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('dashboard.markCompleted') || 'Mark as Completed')}
+                  onClick={(e) => handleToggleCaseStatus(e, c)}
+                  className={`p-2.5 rounded-xl border transition-all flex items-center justify-center ${
+                    c.status === 'closed'
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm'
+                      : 'bg-surface border-border-main text-text-muted hover:text-brand-accent hover:border-brand-accent/50'
+                  }`}
+                >
+                  {c.status === 'closed' ? (
+                    <CheckSquare className="w-5 h-5 text-emerald-400" />
+                  ) : (
+                    <Square className="w-5 h-5" />
+                  )}
+                </button>
+                <div className="bg-surface p-3 rounded-xl border border-border-main">
+                  <Folder className="w-5 h-5 text-brand-accent" />
+                </div>
               </div>
+
               <div className="flex items-center gap-2">
                 <button
                   onClick={(e) => openEditModal(e, c)}
@@ -300,7 +333,9 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
               </div>
             </div>
             
-            <h3 className="text-xl font-bold text-text-main mb-2 group-hover:text-brand-accent transition-colors tracking-tight">
+            <h3 className={`text-xl font-bold mb-2 group-hover:text-brand-accent transition-colors tracking-tight ${
+              c.status === 'closed' ? 'text-text-main/80 line-through decoration-emerald-500/50' : 'text-text-main'
+            }`}>
               {c.title}
             </h3>
             
@@ -308,14 +343,32 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
               <p className="text-xs text-text-muted mb-4 line-clamp-2 leading-relaxed">{c.description}</p>
             )}
             
-            <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-text-muted">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-text-muted">
               <div className="flex items-center gap-2">
                 <Clock className="w-3 h-3 text-text-muted" />
                 {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString() : 'Just now'}
               </div>
-              <div className="px-2 py-0.5 bg-surface text-text-main rounded border border-border-main">
-                {c.status}
-              </div>
+              <button
+                type="button"
+                onClick={(e) => handleToggleCaseStatus(e, c)}
+                className={`px-2.5 py-1 rounded-full border text-[9px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 ${
+                  c.status === 'closed'
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400'
+                    : 'bg-surface border-border-main text-text-muted hover:border-brand-accent/50'
+                }`}
+              >
+                {c.status === 'closed' ? (
+                  <>
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                    <span>{t('dashboard.completed') || 'Completed'}</span>
+                  </>
+                ) : (
+                  <>
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    <span>{t('dashboard.inProgress') || 'In Progress'}</span>
+                  </>
+                )}
+              </button>
             </div>
             
             <div className="mt-6 pt-4 border-t border-border-main flex items-center text-brand-accent font-bold text-[10px] uppercase tracking-widest group-hover:gap-2 transition-all">

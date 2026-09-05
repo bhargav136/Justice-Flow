@@ -2,10 +2,10 @@ import * as React from 'react';
 const { useState, useEffect, useRef } = React;
 import { useTranslation } from 'react-i18next';
 import { db, auth, storage, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy, updateDoc } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case, Document, Analysis, ChatMessage } from '../types';
-import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeLegalDocument, chatWithCase, getGeminiApiKey, setGeminiApiKey } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
@@ -71,6 +71,17 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
 
     return unsubDocs;
   }, [caseId]);
+
+  const handleToggleCaseStatus = async () => {
+    if (!caseData) return;
+    const newStatus = caseData.status === 'closed' ? 'open' : 'closed';
+    try {
+      await updateDoc(doc(db, 'cases', caseId), { status: newStatus });
+      setCaseData({ ...caseData, status: newStatus });
+    } catch (error) {
+      handleFirestoreError(error, OperationType.UPDATE, `cases/${caseId}`);
+    }
+  };
 
   useEffect(() => {
     if (!activeDoc) {
@@ -404,11 +415,35 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       <div className="glass-card p-6 rounded-3xl border-border-main shadow-lg">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
           <div className="space-y-2">
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="w-10 h-10 bg-brand-accent/10 rounded-xl flex items-center justify-center">
                 <Scale className="w-5 h-5 text-brand-accent" />
               </div>
               <h2 className="text-2xl font-bold text-text-main tracking-tight">{caseData?.title || 'Loading Case...'}</h2>
+              {caseData && (
+                <button
+                  type="button"
+                  onClick={handleToggleCaseStatus}
+                  title={caseData.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('dashboard.markCompleted') || 'Mark as Completed')}
+                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-2 ${
+                    caseData.status === 'closed'
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm'
+                      : 'bg-surface border-border-main text-text-muted hover:border-brand-accent/50 hover:text-brand-accent'
+                  }`}
+                >
+                  {caseData.status === 'closed' ? (
+                    <>
+                      <CheckSquare className="w-4 h-4 text-emerald-400" />
+                      <span>{t('dashboard.completed') || 'Case Completed'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Square className="w-4 h-4" />
+                      <span>{t('dashboard.inProgress') || 'In Progress'}</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
             <p className="text-sm text-text-muted leading-relaxed max-w-2xl">{caseData?.description}</p>
           </div>
