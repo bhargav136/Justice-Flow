@@ -39,7 +39,7 @@ const getAIClient = (): GoogleGenAI | null => {
 };
 
 // Fallback judicial engine when no API key is provided or API call fails
-const fallbackJudicialAnalysis = (fileName: string, text: string) => {
+export const fallbackJudicialAnalysis = (fileName: string, text: string) => {
   const cleanText = text || '';
   const lines = cleanText.split('\n').filter(l => l.trim().length > 0);
   const sampleText = lines.slice(0, 15).join(' ');
