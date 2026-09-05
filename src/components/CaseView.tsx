@@ -56,6 +56,8 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzingDocId = useRef<string | null>(null);
 
+  const effectiveDocuments = documents.length > 0 ? documents : (activeDoc ? [activeDoc] : []);
+
   useEffect(() => {
     const fetchCase = async () => {
       try {
@@ -73,14 +75,32 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     const qDocs = query(collection(db, 'documents'), where('caseId', '==', caseId));
     const unsubDocs = onSnapshot(qDocs, (snapshot) => {
       const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Document));
-      setDocuments(docs);
+      setDocuments(prev => {
+        let merged = [...docs];
+        if (activeDoc && !merged.some(d => d.id === activeDoc.id || d.fileName === activeDoc.fileName)) {
+          merged = [activeDoc, ...merged];
+        }
+        return merged.length > 0 ? merged : prev;
+      });
       if (docs.length > 0 && !activeDoc) setActiveDoc(docs[0]);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'documents');
+      console.warn('Documents listener notice:', error);
     });
 
     return unsubDocs;
   }, [caseId]);
+
+  useEffect(() => {
+    if (activeDoc) {
+      setDocuments(prev => {
+        const exists = prev.some(d => d.id === activeDoc.id || d.fileName === activeDoc.fileName);
+        return exists ? prev : [activeDoc, ...prev];
+      });
+      if (!analysis && !analyzingDocId.current && (activeDoc.textContent || activeDoc.fileUrl)) {
+        handleAnalyze(activeDoc, activeDoc.textContent || activeDoc.fileUrl, []);
+      }
+    }
+  }, [activeDoc]);
 
   const handleToggleCaseStatus = async () => {
     if (!caseData) return;
@@ -738,6 +758,30 @@ ${activeDoc.textContent || activeDoc.fileName}
                       {activeDoc.createdAt?.toDate ? activeDoc.createdAt.toDate().toLocaleDateString() : new Date().toLocaleDateString()}
                     </div>
                   </div>
+
+                  <div className="flex items-center justify-between pt-2 mt-1.5 border-t border-border-main/50">
+                    <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                      Evidence Initialized
+                    </span>
+                    <motion.button
+                      type="button"
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.94 }}
+                      onClick={() => {
+                        setUploadSuccess(true);
+                        if (!analysis && (activeDoc.textContent || activeDoc.fileUrl)) {
+                          handleAnalyze(activeDoc, activeDoc.textContent || activeDoc.fileUrl, []);
+                        }
+                        const chatEl = document.getElementById('judicial-chat-section');
+                        chatEl?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md text-[9px] font-bold uppercase tracking-wider transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+                    >
+                      <Sparkles className="w-2.5 h-2.5" />
+                      <span>{t('common.confirm') || 'Confirm'} • Open AI Assistant</span>
+                    </motion.button>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -758,7 +802,7 @@ ${activeDoc.textContent || activeDoc.fileName}
           </motion.button>
           <div className="h-6 w-px bg-border-main" />
           <div className="flex gap-2 overflow-x-auto max-w-[600px] pb-1 no-scrollbar">
-            {documents.map(doc => (
+            {effectiveDocuments.map(doc => (
               <motion.button
                 key={doc.id}
                 whileHover={{ scale: 1.04 }}
@@ -776,7 +820,27 @@ ${activeDoc.textContent || activeDoc.fileName}
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap gap-2.5">
+        <div className="flex flex-wrap items-center gap-2.5">
+          {activeDoc && (
+            <motion.button 
+              type="button"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={() => {
+                setUploadSuccess(true);
+                if (!analysis && (activeDoc.textContent || activeDoc.fileUrl)) {
+                  handleAnalyze(activeDoc, activeDoc.textContent || activeDoc.fileUrl, []);
+                }
+                const chatEl = document.getElementById('judicial-chat-section');
+                chatEl?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest text-[10px] cursor-pointer shadow-lg shadow-emerald-500/20 transition-all animate-pulse"
+              title="Confirm initialized evidence and open Judicial AI Assistant"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+              <span>{t('common.confirm') || 'Confirm Evidence'}</span>
+            </motion.button>
+          )}
           <motion.button 
             type="button"
             whileHover={{ scale: 1.02 }}
@@ -830,7 +894,7 @@ ${activeDoc.textContent || activeDoc.fileName}
         )}
       </AnimatePresence>
 
-      {documents.length > 0 ? (
+      {(effectiveDocuments.length > 0 || activeDoc) ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-320px)]">
           {/* Left Panel: Document Viewer */}
           <div className="lg:col-span-6 flex flex-col gap-2">
@@ -1083,7 +1147,7 @@ ${activeDoc.textContent || activeDoc.fileName}
             </div>
 
             {/* Chat Section */}
-            <div className="glass-card rounded-[2.5rem] flex flex-col overflow-hidden">
+            <div id="judicial-chat-section" className="glass-card rounded-[2.5rem] flex flex-col overflow-hidden">
               <div className="bg-surface/50 border-b border-border-main px-8 py-3.5 flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <MessageSquare className="w-5 h-5 text-brand-accent" />
