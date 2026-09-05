@@ -5,9 +5,9 @@ import { db, auth, storage, handleFirestoreError, OperationType } from '../fireb
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case, Document, Analysis, ChatMessage } from '../types';
-import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { analyzeLegalDocument, chatWithCase } from '../services/gemini';
+import { analyzeLegalDocument, chatWithCase, getGeminiApiKey, setGeminiApiKey } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -41,6 +41,9 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [chatInput, setChatInput] = useState('');
   const [activeTab, setActiveTab] = useState<'summary' | 'legal_points' | 'timeline' | 'authenticity'>('summary');
+  const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
+  const [apiKeyInput, setApiKeyInput] = useState(getGeminiApiKey());
+  const [apiKeySaved, setApiKeySaved] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -138,11 +141,17 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       handleFirestoreError(error, OperationType.LIST, 'analyses');
     });
 
-    const qChat = query(collection(db, 'chats'), where('documentId', '==', activeDoc.id), orderBy('createdAt', 'asc'));
+    const qChat = query(collection(db, 'chats'), where('documentId', '==', activeDoc.id));
     const unsubChat = onSnapshot(qChat, (snapshot) => {
-      setChatMessages(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage)));
+      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage));
+      msgs.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || (a.createdAt?.toDate ? a.createdAt.toDate().getTime() / 1000 : 0);
+        const timeB = b.createdAt?.seconds || (b.createdAt?.toDate ? b.createdAt.toDate().getTime() / 1000 : 0);
+        return timeA - timeB;
+      });
+      setChatMessages(msgs);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'chats');
+      console.warn('Chats listener notice:', error);
     });
 
     return () => {
@@ -277,7 +286,8 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         createdAt: serverTimestamp()
       });
 
-      const response = await chatWithCase(activeDoc.fileUrl, chatMessages, userMsg);
+      const docText = activeDoc.textContent || activeDoc.fileName || caseData?.description || 'Active legal case';
+      const response = await chatWithCase(docText, chatMessages, userMsg);
 
       await addDoc(collection(db, 'chats'), {
         documentId: activeDoc.id,
@@ -286,8 +296,17 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         userId: currentUserId,
         createdAt: serverTimestamp()
       });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, 'chats');
+    } catch (error: any) {
+      console.error('Chat error:', error);
+      try {
+        await addDoc(collection(db, 'chats'), {
+          documentId: activeDoc.id,
+          role: 'assistant',
+          content: `**Judicial Assistant Notice**:\n\n${error?.message || 'Inquiry processed. Please verify your legal queries or set your Gemini API key.'}`,
+          userId: currentUserId,
+          createdAt: serverTimestamp()
+        });
+      } catch (innerErr) {}
     } finally {
       setIsChatting(false);
     }
@@ -713,9 +732,31 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
 
             {/* Chat Section */}
             <div className="glass-card rounded-[2.5rem] flex flex-col overflow-hidden">
-              <div className="bg-surface/50 border-b border-border-main px-8 py-4 flex items-center gap-3">
-                <MessageSquare className="w-5 h-5 text-brand-accent" />
-                <h3 className="text-[10px] font-bold text-text-main uppercase tracking-[0.3em]">{t('case.chatInterface')}</h3>
+              <div className="bg-surface/50 border-b border-border-main px-8 py-3.5 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <MessageSquare className="w-5 h-5 text-brand-accent" />
+                  <h3 className="text-[10px] font-bold text-text-main uppercase tracking-[0.3em]">{t('case.chatInterface')}</h3>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyDialog(true)}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-surface border border-border-main hover:border-brand-accent text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-brand-accent transition-all shadow-sm"
+                  title="Configure Google Gemini API Key"
+                >
+                  <Key className="w-3 h-3 text-brand-accent" />
+                  {getGeminiApiKey() ? (
+                    <span className="text-green-500 flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                      Live AI
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-amber-500">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                      Set API Key
+                    </span>
+                  )}
+                </button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 space-y-6">
@@ -812,6 +853,117 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
           </label>
         </div>
       )}
+      {/* Gemini API Key Dialog */}
+      <AnimatePresence>
+        {showApiKeyDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowApiKeyDialog(false)}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-md bg-surface border border-border-main rounded-3xl shadow-2xl p-6 z-10 space-y-5"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-border-main">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-brand-primary/10 flex items-center justify-center text-brand-primary">
+                    <Key className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-text-main">Google Gemini API Key</h3>
+                    <p className="text-[11px] text-text-muted">Activate Live Judicial Intelligence</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyDialog(false)}
+                  className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface rounded-lg"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <p className="text-xs text-text-muted leading-relaxed">
+                  Enter your Google Gemini API key to enable live cloud AI document analysis and chat. Your key is stored securely in your local browser session.
+                </p>
+
+                <input
+                  type="password"
+                  value={apiKeyInput}
+                  onChange={(e) => setApiKeyInput(e.target.value)}
+                  placeholder="AIzaSy..."
+                  className="w-full bg-surface/60 border border-border-main rounded-xl p-3 text-sm text-text-main placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent/50"
+                />
+
+                <div className="flex items-center justify-between pt-2">
+                  <a
+                    href="https://aistudio.google.com/app/apikey"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] text-brand-accent hover:underline flex items-center gap-1"
+                  >
+                    Get free API key from Google AI Studio ↗
+                  </a>
+                </div>
+
+                {apiKeySaved && (
+                  <p className="text-xs text-green-500 font-semibold flex items-center gap-1">
+                    ✓ API Key updated successfully!
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border-main">
+                {getGeminiApiKey() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGeminiApiKey('');
+                      setApiKeyInput('');
+                      setApiKeySaved(true);
+                      setTimeout(() => {
+                        setApiKeySaved(false);
+                        setShowApiKeyDialog(false);
+                      }, 800);
+                    }}
+                    className="px-3 py-2 text-xs font-semibold text-red-400 hover:bg-red-400/10 rounded-xl mr-auto"
+                  >
+                    Clear Key
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setShowApiKeyDialog(false)}
+                  className="px-4 py-2 text-xs font-semibold text-text-muted hover:bg-surface rounded-xl border border-border-main"
+                >
+                  Close
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGeminiApiKey(apiKeyInput.trim());
+                    setApiKeySaved(true);
+                    setTimeout(() => {
+                      setApiKeySaved(false);
+                      setShowApiKeyDialog(false);
+                    }, 800);
+                  }}
+                  className="px-5 py-2 text-xs font-semibold text-white bg-brand-primary hover:bg-brand-primary/90 rounded-xl shadow-md"
+                >
+                  Save Key
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
