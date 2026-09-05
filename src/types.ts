@@ -58,3 +58,23 @@ export interface ChatMessage {
   userId: string;
   createdAt: any;
 }
+
+export type JudicialRole = 
+  | 'Chief Justice'
+  | 'High Court Judge'
+  | 'Magistrate'
+  | 'Public Prosecutor'
+  | 'Advocate / Legal Counsel'
+  | 'Judicial Clerk'
+  | 'Court Administrator';
+
+export interface UserProfile {
+  uid: string;
+  displayName: string;
+  email: string;
+  photoURL: string;
+  role: JudicialRole;
+  bio?: string;
+  gender?: 'Male' | 'Female' | 'Non-Binary' | 'Prefer not to say';
+  updatedAt?: any;
+}

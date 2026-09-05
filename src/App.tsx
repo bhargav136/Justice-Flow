@@ -19,6 +19,8 @@ import LanguageSwitcher from './components/LanguageSwitcher';
 
 import Dashboard from './components/Dashboard';
 import CaseView from './components/CaseView';
+import ProfileModal from './components/ProfileModal';
+import { UserProfile } from './types';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -46,32 +48,106 @@ function AppContent() {
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState(false);
 
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Sync user profile to Firestore
+        const cached = localStorage.getItem('justiceflow_profile_' + user.uid);
+        if (cached) {
+          try {
+            setProfile(JSON.parse(cached));
+          } catch (e) {}
+        }
+
         const userRef = doc(db, 'users', user.uid);
         try {
           const userDoc = await getDoc(userRef);
-          if (!userDoc.exists()) {
-            await setDoc(userRef, {
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            const prof: UserProfile = {
               uid: user.uid,
-              displayName: user.displayName || 'Judicial Officer',
-              email: user.email,
-              role: user.email === 'shaikismailhis6@gmail.com' || user.email === 'judge@justiceflow.gov' ? 'admin' : 'judge',
-              photoURL: user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=Judge-${user.uid}`,
+              displayName: data.displayName || user.displayName || 'Hon. Justice Sharma',
+              email: data.email || user.email || 'judge@justiceflow.gov',
+              photoURL: data.photoURL || user.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9',
+              role: data.role || 'Magistrate',
+              gender: data.gender || 'Prefer not to say',
+              bio: data.bio || 'Presiding Magistrate with focus on evidentiary forensics and legal fairness.'
+            };
+            setProfile(prof);
+            localStorage.setItem('justiceflow_profile_' + user.uid, JSON.stringify(prof));
+          } else {
+            const defaultProf: UserProfile = {
+              uid: user.uid,
+              displayName: user.displayName || 'Hon. Justice Sharma',
+              email: user.email || 'judge@justiceflow.gov',
+              role: 'Magistrate',
+              photoURL: user.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9',
+              gender: 'Prefer not to say',
+              bio: 'Presiding Magistrate with focus on evidentiary forensics and legal fairness.'
+            };
+            await setDoc(userRef, {
+              ...defaultProf,
               createdAt: serverTimestamp()
             });
+            setProfile(defaultProf);
+            localStorage.setItem('justiceflow_profile_' + user.uid, JSON.stringify(defaultProf));
           }
         } catch (error) {
           console.error('Error syncing user profile:', error);
+          if (!cached) {
+            setProfile({
+              uid: user.uid,
+              displayName: user.displayName || 'Hon. Justice Sharma',
+              email: user.email || 'judge@justiceflow.gov',
+              role: 'Magistrate',
+              photoURL: user.photoURL || 'https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9',
+              gender: 'Prefer not to say',
+              bio: 'Presiding Magistrate with focus on evidentiary forensics and legal fairness.'
+            });
+          }
         }
+      } else {
+        setProfile(null);
       }
       setUser(user);
       setLoading(false);
     });
     return unsubscribe;
   }, []);
+
+  const handleSaveProfile = async (updated: UserProfile) => {
+    setProfile(updated);
+    localStorage.setItem('justiceflow_profile_' + updated.uid, JSON.stringify(updated));
+
+    if (auth.currentUser) {
+      try {
+        await updateProfile(auth.currentUser, {
+          displayName: updated.displayName,
+          photoURL: updated.photoURL
+        });
+      } catch (err) {
+        console.warn('Could not update Firebase auth profile:', err);
+      }
+    }
+
+    try {
+      const userRef = doc(db, 'users', updated.uid);
+      await setDoc(userRef, {
+        uid: updated.uid,
+        displayName: updated.displayName,
+        email: updated.email,
+        photoURL: updated.photoURL,
+        role: updated.role,
+        gender: updated.gender || '',
+        bio: updated.bio || '',
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+    } catch (err) {
+      console.warn('Could not persist profile to Firestore:', err);
+    }
+  };
 
   const handleJudicialLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,13 +168,42 @@ function AppContent() {
             setAuthError('Network connection to Judicial Servers is restricted. Initializing Local Secure Session...');
             // Wait a bit to show the message then bypass
             setTimeout(() => {
+              const cached = localStorage.getItem('justiceflow_profile_demo-judge-001');
+              let initialProf: UserProfile;
+              if (cached) {
+                try {
+                  initialProf = JSON.parse(cached);
+                } catch (e) {
+                  initialProf = {
+                    uid: 'demo-judge-001',
+                    displayName: 'Hon. Justice Sharma',
+                    photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9',
+                    email: 'judge@justiceflow.gov',
+                    role: 'Magistrate',
+                    gender: 'Prefer not to say',
+                    bio: 'Presiding Magistrate with focus on evidentiary forensics and legal fairness.'
+                  };
+                }
+              } else {
+                initialProf = {
+                  uid: 'demo-judge-001',
+                  displayName: 'Hon. Justice Sharma',
+                  photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9',
+                  email: 'judge@justiceflow.gov',
+                  role: 'Magistrate',
+                  gender: 'Prefer not to say',
+                  bio: 'Presiding Magistrate with focus on evidentiary forensics and legal fairness.'
+                };
+              }
+
               const localUser = {
                 uid: 'demo-judge-001',
-                displayName: 'Hon. Justice Sharma (Local Session)',
-                photoURL: 'https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge',
+                displayName: initialProf.displayName,
+                photoURL: initialProf.photoURL,
                 email: 'judge@justiceflow.gov'
               };
               (window as any)._localUser = localUser;
+              setProfile(initialProf);
               setUser(localUser as any);
             }, 1500);
             return;
@@ -306,17 +411,28 @@ function AppContent() {
 
           <LanguageSwitcher />
 
-          <div className="flex items-center gap-4 pr-6 border-r border-border-main">
+          <div 
+            onClick={() => setIsProfileModalOpen(true)}
+            className="flex items-center gap-4 pr-6 border-r border-border-main cursor-pointer group hover:opacity-95 transition-all"
+            title="Click to view & edit your profile"
+          >
             <div className="text-right hidden md:block">
-              <p className="text-sm font-bold text-text-main leading-none">{user.displayName}</p>
-              <p className="text-[10px] text-brand-accent font-bold uppercase tracking-widest mt-1">
-                {user.uid === 'demo-judge-001' ? 'Local Secure Session' : 'Judicial Officer'}
+              <p className="text-sm font-bold text-text-main leading-none group-hover:text-brand-accent transition-colors">
+                {profile?.displayName || user.displayName || 'Judicial Officer'}
               </p>
+              <div className="flex items-center justify-end gap-1.5 mt-1">
+                <p className="text-[10px] text-brand-accent font-bold uppercase tracking-widest">
+                  {profile?.role || (user.uid === 'demo-judge-001' ? 'Local Secure Session' : 'Judicial Officer')}
+                </p>
+                <span className="text-[8px] font-bold px-1.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary border border-brand-primary/20 group-hover:bg-brand-primary group-hover:text-white transition-all uppercase tracking-wider">
+                  Edit
+                </span>
+              </div>
             </div>
-            {/* Force professional judge avatar for all judicial officers */}
-            <div className="w-10 h-10 rounded-xl border border-border-main shadow-lg overflow-hidden bg-surface">
+            {/* Custom or Selected Avatar */}
+            <div className="w-10 h-10 rounded-xl border border-border-main shadow-lg overflow-hidden bg-surface group-hover:ring-2 group-hover:ring-brand-accent transition-all relative">
               <img 
-                src={`https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
+                src={profile?.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
                 className="w-full h-full object-cover" 
                 alt="Judicial Avatar" 
               />
@@ -347,6 +463,15 @@ function AppContent() {
           </AnimatePresence>
         </Suspense>
       </main>
+
+      {profile && (
+        <ProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          profile={profile}
+          onSave={handleSaveProfile}
+        />
+      )}
     </div>
   );
 }
