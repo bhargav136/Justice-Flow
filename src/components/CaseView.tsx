@@ -286,7 +286,25 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         createdAt: serverTimestamp()
       });
 
-      const docText = activeDoc.textContent || activeDoc.fileName || caseData?.description || 'Active legal case';
+      // Format document upload date
+      let uploadDateStr = 'Recently uploaded';
+      if (activeDoc.createdAt) {
+        if (activeDoc.createdAt.toDate) {
+          uploadDateStr = activeDoc.createdAt.toDate().toLocaleString();
+        } else if (activeDoc.createdAt instanceof Date) {
+          uploadDateStr = activeDoc.createdAt.toLocaleString();
+        } else if (activeDoc.createdAt.seconds) {
+          uploadDateStr = new Date(activeDoc.createdAt.seconds * 1000).toLocaleString();
+        }
+      }
+
+      const docText = `=== DOCUMENT METADATA ===\n` +
+        `File Name: ${activeDoc.fileName}\n` +
+        `Upload Date / Timestamp: ${uploadDateStr}\n` +
+        `Case Title: ${caseData?.title || 'Active Judicial Matter'}\n\n` +
+        `=== DOCUMENT CONTENT ===\n` +
+        (activeDoc.textContent || activeDoc.fileName || caseData?.description || 'Active legal case');
+
       const response = await chatWithCase(docText, chatMessages, userMsg);
 
       await addDoc(collection(db, 'chats'), {

@@ -175,6 +175,66 @@ ${textContent || fileName}`
 const fallbackChatAssistant = (documentContent: string, message: string): string => {
   const lower = message.toLowerCase();
 
+  // Handle Date and Upload Timeline queries explicitly
+  if (
+    lower.includes('date') || 
+    lower.includes('when') || 
+    lower.includes('time') || 
+    lower.includes('upload') || 
+    lower.includes('schedule') || 
+    lower.includes('chronolog') ||
+    lower.includes('calendar')
+  ) {
+    // Extract document upload date & file name from metadata
+    const uploadMatch = documentContent.match(/Upload Date \/ Timestamp:\s*([^\n]+)/i);
+    const fileMatch = documentContent.match(/File Name:\s*([^\n]+)/i);
+    const uploadDate = uploadMatch ? uploadMatch[1].trim() : 'Active session upload';
+    const fileName = fileMatch ? fileMatch[1].trim() : 'Submitted Document';
+
+    // Comprehensive date extraction regex
+    const datePatterns = [
+      /\b(?:\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}|\d{4}[-\/\.]\d{1,2}[-\/\.]\d{1,2})\b/g,
+      /\b\d{1,2}(?:st|nd|rd|th)?\s+(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,]+\d{2,4}\b/gi,
+      /\b(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}(?:st|nd|rd|th)?[\s,]+\d{2,4}\b/gi,
+      /\b\d{1,2}:\d{2}(?::\d{2})?\s*(?:AM|PM|am|pm|hrs|hours)?\b/g
+    ];
+
+    const foundDates: { date: string; context: string }[] = [];
+    const seen = new Set<string>();
+
+    for (const pattern of datePatterns) {
+      let match: RegExpExecArray | null;
+      while ((match = pattern.exec(documentContent)) !== null) {
+        const d = match[0].trim();
+        // Ignore obvious false positives (e.g. pure single digits or small fragments)
+        if (d.length > 2 && !seen.has(d.toLowerCase())) {
+          seen.add(d.toLowerCase());
+          const start = Math.max(0, match.index - 40);
+          const end = Math.min(documentContent.length, match.index + d.length + 60);
+          const snippet = documentContent.substring(start, end).replace(/\n/g, ' ').trim();
+          foundDates.push({ date: d, context: `"...${snippet}..."` });
+        }
+      }
+    }
+
+    let out = `### 📅 Comprehensive Dates & Upload Record\n\n`;
+    out += `#### 1. Official Document Upload Date\n`;
+    out += `- **File**: \`${fileName}\`\n`;
+    out += `- **Uploaded to Vault on**: \`${uploadDate}\`\n\n`;
+    out += `#### 2. All Dates Mentioned in Uploaded Document (${foundDates.length} found)\n\n`;
+
+    if (foundDates.length > 0) {
+      foundDates.forEach((item, idx) => {
+        out += `${idx + 1}. **Date / Timestamp**: \`${item.date}\`\n   - *Context*: ${item.context}\n\n`;
+      });
+    } else {
+      out += `- No specific calendar dates were found in the raw text. The file was recorded in the vault on **${uploadDate}**.\n`;
+    }
+
+    out += `\n*Would you like me to map these dates into a chronological courtroom timeline table?*`;
+    return out;
+  }
+
   if (lower.includes('summar') || lower.includes('argument') || lower.includes('brief')) {
     const preview = documentContent ? documentContent.substring(0, 400) : 'The uploaded legal record';
     return `### Judicial Summary of Case Arguments\n\n` +
@@ -231,6 +291,17 @@ export const chatWithCase = async (
         config: {
           systemInstruction: `You are JusticeFlow AI, an elite Judicial Intelligence Assistant. You are assisting a Magistrate or Judge in analyzing legal documents and case files. 
 Answer questions with judicial neutrality, precision, and citation of specific sections of the document when possible.
+
+CRITICAL INSTRUCTION FOR DATE & TIMELINE INQUIRIES:
+When the user asks about dates (e.g. "what are the dates", "mention all dates which i upload", "dates uploaded", "dates in the file", "timeline", "when"):
+1. FIRST clearly mention the exact Document Upload Date & Timestamp and file name specified in the DOCUMENT METADATA.
+2. Carefully and comprehensively extract EVERY SINGLE date, timestamp, occurrence time, and date range mentioned anywhere in the document.
+3. Present all extracted dates in chronological order with:
+   - Date / Timestamp
+   - Fact, Event, or Legal Action that took place
+   - Document quotation or section reference
+Never omit any date found in the document.
+
 Document Content:
 ${documentContent || "Active Legal Document"}`
         },
