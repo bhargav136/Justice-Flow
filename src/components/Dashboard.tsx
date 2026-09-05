@@ -33,6 +33,33 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
     }
   });
 
+  const [showNewCaseModal, setShowNewCaseModal] = useState(false);
+  const [editingCase, setEditingCase] = useState<Case | null>(null);
+  const [newCaseTitle, setNewCaseTitle] = useState('');
+  const [newCaseDescription, setNewCaseDescription] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [processingMessage, setProcessingMessage] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const templates = [
+    { title: 'Criminal Case', titleTemplate: 'State vs. ', descTemplate: 'Charge: \nDefendant: \nFacts: ' },
+    { title: 'Civil Litigation', titleTemplate: ' vs. ', descTemplate: 'Plaintiff: \nDefendant: \nMatter: ' },
+    { title: 'Family Law', titleTemplate: 'In re: ', descTemplate: 'Family Name: \nMatter: ' },
+  ];
+
+  const handleTemplateChange = (templateTitle: string) => {
+    setSelectedTemplate(templateTitle);
+    const template = templates.find(t => t.title === templateTitle);
+    if (template) {
+      setNewCaseTitle(template.titleTemplate);
+      setNewCaseDescription(template.descTemplate);
+    }
+  };
+
   useEffect(() => {
     if (cases.length > 0) {
       try {
