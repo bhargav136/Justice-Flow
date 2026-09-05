@@ -373,14 +373,38 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         }
       }
 
-      const docText = `=== DOCUMENT METADATA ===\n` +
-        `File Name: ${activeDoc.fileName}\n` +
-        `Upload Date / Timestamp: ${uploadDateStr}\n` +
-        `Case Title: ${caseData?.title || 'Active Judicial Matter'}\n\n` +
-        `=== DOCUMENT CONTENT ===\n` +
-        (activeDoc.textContent || activeDoc.fileName || caseData?.description || 'Active legal case');
+      // Build comprehensive multi-document case dossier across ALL uploaded files
+      const caseDossierSummary = documents.map((docItem, index) => {
+        let dDate = 'N/A';
+        if (docItem.createdAt) {
+          if (docItem.createdAt.toDate) dDate = docItem.createdAt.toDate().toLocaleString();
+          else if (docItem.createdAt instanceof Date) dDate = docItem.createdAt.toLocaleString();
+          else if (docItem.createdAt.seconds) dDate = new Date(docItem.createdAt.seconds * 1000).toLocaleString();
+        }
+        return `--- [CASE FILE ${index + 1}/${documents.length}]: "${docItem.fileName}" ---
+Type: ${docItem.type || 'document'}
+Upload Date: ${dDate}
+File Content:
+${docItem.textContent ? docItem.textContent.slice(0, 15000) : `[Visual / Photographic Evidence: ${docItem.fileName}]`}`;
+      }).join('\n\n');
 
-      const response = await chatWithCase(docText, chatMessages, userMsg);
+      const fullCaseContext = `=== JUDICIAL CASE DOSSIER: "${caseData?.title || 'Active Judicial Record'}" ===
+Case Title: ${caseData?.title || 'Untitled Case'}
+Case Description: ${caseData?.description || 'No description recorded'}
+Case Status: ${caseData?.status === 'closed' ? 'Completed / Closed' : 'In Progress / Open'}
+Total Evidence Files in Case: ${documents.length}
+
+=== ALL UPLOADED EVIDENCE FILES IN THIS CASE ===
+${caseDossierSummary || 'No other files in docket.'}
+
+=== CURRENTLY ACTIVE FILE IN FOCUS ===
+File Name: ${activeDoc.fileName}
+Upload Date / Timestamp: ${uploadDateStr}
+Content:
+${activeDoc.textContent || activeDoc.fileName}
+`;
+
+      const response = await chatWithCase(fullCaseContext, chatMessages, userMsg);
 
       await addDoc(collection(db, 'chats'), {
         documentId: activeDoc.id,

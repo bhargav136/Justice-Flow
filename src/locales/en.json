@@ -75,7 +75,7 @@
     "aiProb": "AI Prob",
     "trueProb": "True Prob",
     "notes": "Notes",
-    "query1": "Summarize the primary legal arguments.",
+    "query1": "Summarize the case across all uploaded case files.",
     "query2": "Identify potential witness contradictions.",
     "query3": "List all mentioned dates and their significance.",
     "query4": "What are the relevant precedents for this case?"

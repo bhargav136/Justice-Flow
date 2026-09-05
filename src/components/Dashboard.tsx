@@ -30,6 +30,7 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
   const [newCaseTitle, setNewCaseTitle] = useState('');
   const [newCaseDescription, setNewCaseDescription] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
 
   const templates = [
     { title: 'Criminal Case', titleTemplate: 'State vs. ', descTemplate: 'Charge: \nDefendant: \nFacts: ' },
@@ -242,9 +243,12 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
     }
   };
 
-  const filteredCases = cases.filter(c => 
-    c.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredCases = cases.filter(c => {
+    const matchesSearch = c.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.description && c.description.toLowerCase().includes(searchQuery.toLowerCase()));
+    const matchesStatus = statusFilter === 'all' || c.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <motion.div 
@@ -269,33 +273,106 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
         </motion.button>
       </div>
 
+      {/* Interactive Stat Cards - Click to filter and view cases */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
-          { label: t('dashboard.totalLoad') || 'Total Case Load', value: cases.length, icon: Folder, color: 'text-brand-accent' },
-          { label: t('dashboard.inProgress') || 'In Progress', value: cases.filter(c => c.status === 'open').length, icon: Clock, color: 'text-yellow-500' },
-          { label: t('dashboard.completedCases') || 'Completed Cases', value: cases.filter(c => c.status === 'closed').length, icon: CheckCircle2, color: 'text-emerald-400' },
-        ].map((stat, i) => (
-          <div key={i} className="glass-card p-6 rounded-2xl flex items-center gap-4">
-            <div className={`p-3 rounded-xl bg-surface border border-border-main ${stat.color}`}>
-              <stat.icon className="w-5 h-5" />
+          { 
+            id: 'all' as const, 
+            label: t('dashboard.totalLoad') || 'Total Case Load', 
+            value: cases.length, 
+            icon: Folder, 
+            color: 'text-brand-accent',
+            activeStyle: 'ring-2 ring-brand-accent border-brand-accent/60 bg-brand-accent/[0.04]',
+            hint: 'Show All Cases'
+          },
+          { 
+            id: 'open' as const, 
+            label: t('dashboard.inProgress') || 'In Progress', 
+            value: cases.filter(c => c.status === 'open').length, 
+            icon: Clock, 
+            color: 'text-yellow-500',
+            activeStyle: 'ring-2 ring-yellow-500 border-yellow-500/60 bg-yellow-500/[0.04]',
+            hint: 'Show In Progress Cases'
+          },
+          { 
+            id: 'closed' as const, 
+            label: t('dashboard.completedCases') || 'Completed Cases', 
+            value: cases.filter(c => c.status === 'closed').length, 
+            icon: CheckCircle2, 
+            color: 'text-emerald-400',
+            activeStyle: 'ring-2 ring-emerald-500 border-emerald-500/60 bg-emerald-500/[0.04]',
+            hint: 'Show Completed Cases'
+          },
+        ].map((stat) => (
+          <motion.div 
+            key={stat.id} 
+            whileHover={{ y: -4, scale: 1.02 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setStatusFilter(stat.id)}
+            className={`glass-card p-6 rounded-2xl flex items-center justify-between gap-4 cursor-pointer transition-all border ${
+              statusFilter === stat.id 
+                ? `${stat.activeStyle} shadow-lg` 
+                : 'hover:border-border-main/80 opacity-80 hover:opacity-100'
+            }`}
+            title={`Click to filter by: ${stat.label}`}
+          >
+            <div className="flex items-center gap-4">
+              <div className={`p-3 rounded-xl bg-surface border border-border-main ${stat.color}`}>
+                <stat.icon className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">{stat.label}</p>
+                <p className="text-2xl font-bold text-text-main tracking-tight">{stat.value}</p>
+              </div>
             </div>
             <div>
-              <p className="text-[10px] font-bold text-text-muted uppercase tracking-widest">{stat.label}</p>
-              <p className="text-2xl font-bold text-text-main tracking-tight">{stat.value}</p>
+              {statusFilter === stat.id ? (
+                <span className="text-[9px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full bg-brand-primary text-white shadow-sm">
+                  Active View
+                </span>
+              ) : (
+                <span className="text-[9px] font-semibold uppercase tracking-wider text-text-muted hover:text-brand-accent">
+                  Filter →
+                </span>
+              )}
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
 
-    <div className="relative">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted w-4 h-4" />
-        <input
-          type="text"
-          placeholder={t('common.search')}
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-12 pr-6 py-4 bg-surface/50 border border-border-main rounded-xl text-text-main placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all"
-        />
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text-muted w-4 h-4" />
+          <input
+            type="text"
+            placeholder={t('common.search')}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full pl-12 pr-6 py-4 bg-surface/50 border border-border-main rounded-xl text-text-main placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all"
+          />
+        </div>
+
+        {/* Quick Filter Switcher Pills */}
+        <div className="flex items-center gap-1.5 self-start sm:self-auto shrink-0 bg-surface/60 p-1.5 rounded-2xl border border-border-main">
+          {(['all', 'open', 'closed'] as const).map(tab => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setStatusFilter(tab)}
+              className={`px-3.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${
+                statusFilter === tab 
+                  ? 'bg-brand-primary text-white shadow-sm' 
+                  : 'text-text-muted hover:text-text-main hover:bg-surface/50'
+              }`}
+            >
+              {tab === 'all' 
+                ? `All (${cases.length})` 
+                : tab === 'open' 
+                  ? `${t('dashboard.inProgress') || 'In Progress'} (${cases.filter(c => c.status === 'open').length})` 
+                  : `${t('dashboard.completed') || 'Completed'} (${cases.filter(c => c.status === 'closed').length})`}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -404,10 +481,29 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
         ))}
 
         {filteredCases.length === 0 && (
-          <div className="col-span-full py-24 text-center glass-card rounded-[3rem] border-dashed border-border-main">
-            <Gavel className="w-16 h-16 text-brand-accent/30 mx-auto mb-6" />
-            <h3 className="text-2xl font-bold text-text-main mb-2">{t('dashboard.noCases')}</h3>
-            <p className="text-text-main font-semibold tracking-wide">{t('dashboard.initializeFirst')}</p>
+          <div className="col-span-full py-24 text-center glass-card rounded-[3rem] border-dashed border-border-main space-y-4">
+            <Gavel className="w-16 h-16 text-brand-accent/30 mx-auto" />
+            <div>
+              <h3 className="text-2xl font-bold text-text-main mb-1">
+                {statusFilter !== 'all' 
+                  ? `No ${statusFilter === 'open' ? (t('dashboard.inProgress') || 'In Progress') : (t('dashboard.completed') || 'Completed')} Cases Found` 
+                  : t('dashboard.noCases')}
+              </h3>
+              <p className="text-text-muted font-medium text-xs tracking-wide">
+                {statusFilter !== 'all' 
+                  ? `There are currently no cases registered under this status.` 
+                  : t('dashboard.initializeFirst')}
+              </p>
+            </div>
+            {statusFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setStatusFilter('all')}
+                className="px-4 py-2 rounded-xl bg-brand-primary text-white text-[10px] font-bold uppercase tracking-widest shadow-md hover:bg-brand-primary/90 transition-all"
+              >
+                Show All Cases ({cases.length})
+              </button>
+            )}
           </div>
         )}
       </div>
