@@ -130,10 +130,10 @@ service cloud.firestore {
       return hasRequiredFields(required) && hasOnlyAllowedFields(allowed) &&
              data.caseId is string &&
              data.fileName is string && data.fileName.size() > 0 && data.fileName.size() < 255 &&
-             data.fileUrl is string && data.fileUrl.size() > 0 && data.fileUrl.size() < 2000 &&
+             data.fileUrl is string && data.fileUrl.size() > 0 && data.fileUrl.size() < 100000 &&
              data.type is string &&
              data.userId == request.auth.uid &&
-             (!('textContent' in data) || (data.textContent is string && data.textContent.size() < 100000)) &&
+             (!('textContent' in data) || (data.textContent is string && data.textContent.size() < 500000)) &&
              (!('fileSize' in data) || (data.fileSize is number && data.fileSize >= 0));
     }
 
