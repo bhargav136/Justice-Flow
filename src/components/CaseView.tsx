@@ -768,8 +768,8 @@ ${activeDoc.textContent || activeDoc.fileName}
                       type="button"
                       whileHover={{ scale: 1.04 }}
                       whileTap={{ scale: 0.94 }}
-                      onClick={() => {
-                        setUploadSuccess(true);
+                      onClick={async () => {
+                        await handleSaveCurrentCaseFile();
                         if (!analysis && (activeDoc.textContent || activeDoc.fileUrl)) {
                           handleAnalyze(activeDoc, activeDoc.textContent || activeDoc.fileUrl, []);
                         }
@@ -778,8 +778,8 @@ ${activeDoc.textContent || activeDoc.fileName}
                       }}
                       className="px-2.5 py-1 bg-emerald-500 hover:bg-emerald-600 text-white rounded-md text-[9px] font-bold uppercase tracking-wider transition-all shadow-sm flex items-center gap-1 cursor-pointer"
                     >
-                      <Sparkles className="w-2.5 h-2.5" />
-                      <span>{t('common.confirm') || 'Confirm'} • Open AI Assistant</span>
+                      <CheckCircle2 className="w-2.5 h-2.5 text-white" />
+                      <span>{t('case.confirmAndSave') || 'Confirm & Save Case'}</span>
                     </motion.button>
                   </div>
                 </div>
@@ -826,32 +826,21 @@ ${activeDoc.textContent || activeDoc.fileName}
               type="button"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.94 }}
-              onClick={() => {
-                setUploadSuccess(true);
-                if (!analysis && (activeDoc.textContent || activeDoc.fileUrl)) {
+              onClick={async () => {
+                await handleSaveCurrentCaseFile();
+                if (!analysis && activeDoc && (activeDoc.textContent || activeDoc.fileUrl)) {
                   handleAnalyze(activeDoc, activeDoc.textContent || activeDoc.fileUrl, []);
                 }
                 const chatEl = document.getElementById('judicial-chat-section');
                 chatEl?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest text-[10px] cursor-pointer shadow-lg shadow-emerald-500/20 transition-all animate-pulse"
-              title="Confirm initialized evidence and open Judicial AI Assistant"
+              className="flex items-center gap-2 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest text-[10px] cursor-pointer shadow-lg shadow-emerald-500/25 transition-all"
+              title="Confirm and Save Case File"
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-              <span>{t('common.confirm') || 'Confirm Evidence'}</span>
+              <span>{t('case.confirmAndSave') || 'Confirm & Save Case'}</span>
             </motion.button>
           )}
-          <motion.button 
-            type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.94 }}
-            onClick={handleSaveCurrentCaseFile}
-            className="flex items-center gap-2 px-3.5 py-2 bg-surface border border-emerald-500/40 text-emerald-400 rounded-lg font-semibold uppercase tracking-widest text-[10px] hover:bg-emerald-500/10 transition-all shadow-sm"
-            title={t('case.saveCaseDocket') || "Save Case File"}
-          >
-            <Save className="w-3 h-3" />
-            {t('case.saveCaseDocket') || 'Save Case File'}
-          </motion.button>
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.94 }}
@@ -870,7 +859,7 @@ ${activeDoc.textContent || activeDoc.fileName}
             className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg font-semibold uppercase tracking-widest text-[10px] hover:bg-brand-primary/90 cursor-pointer shadow-lg shadow-brand-primary/10 transition-all"
           >
             <Upload className="w-3 h-3" />
-            {uploadSuccess ? t('common.confirm') : t('case.uploadEvidence')}
+            {effectiveDocuments.length > 0 ? (t('case.uploadOtherFile') || 'Upload Other File') : (t('case.uploadEvidence') || 'Upload Evidence')}
           </motion.button>
         </div>
       </div>

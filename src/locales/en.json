@@ -84,6 +84,8 @@
     "saveAndLaunchAI": "Save to Case File & Launch AI",
     "stagedEvidenceTitle": "Evidence Exhibit Name",
     "evidenceSavedSuccess": "Evidence saved to case file! AI Assistant activated.",
-    "dragOrBrowse": "Click to browse or drop evidence file here"
+    "dragOrBrowse": "Click to browse or drop evidence file here",
+    "confirmAndSave": "Confirm & Save Case",
+    "uploadOtherFile": "Upload Other File"
   }
 }
