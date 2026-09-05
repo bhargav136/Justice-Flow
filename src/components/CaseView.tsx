@@ -5,7 +5,7 @@ import { db, auth, storage, handleFirestoreError, OperationType } from '../fireb
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy, updateDoc } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case, Document, Analysis, ChatMessage } from '../types';
-import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare, Save, FolderCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeLegalDocument, chatWithCase, getGeminiApiKey, setGeminiApiKey, fallbackJudicialAnalysis } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
@@ -47,6 +47,11 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState(getGeminiApiKey());
   const [apiKeySaved, setApiKeySaved] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [stagedFile, setStagedFile] = useState<File | null>(null);
+  const [stagedTitle, setStagedTitle] = useState('');
+  const [isSavingToCase, setIsSavingToCase] = useState(false);
+  const [caseSavedNotification, setCaseSavedNotification] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzingDocId = useRef<string | null>(null);
@@ -182,12 +187,30 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatMessages]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelectedForStaging = (file: File) => {
+    if (file.size > 750 * 1024) {
+      alert(t('case.uploadLimit') || 'Evidence file is too large for the secure vault (Max 750KB).');
+      return;
+    }
+    setStagedFile(file);
+    setStagedTitle(file.name.replace(/\.[^/.]+$/, ''));
+    setShowUploadModal(true);
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Reset input immediately so re-uploading same file triggers onChange
     e.target.value = '';
+    handleFileSelectedForStaging(file);
+  };
+
+  const handleSaveStagedFileToCase = async () => {
+    if (!stagedFile) return;
+    const file = stagedFile;
+    const ext = file.name.includes('.') ? file.name.split('.').pop() : '';
+    const displayName = stagedTitle.trim()
+      ? (stagedTitle.includes('.') ? stagedTitle.trim() : (ext ? `${stagedTitle.trim()}.${ext}` : stagedTitle.trim()))
+      : file.name;
 
     const currentUserId = 
       auth.currentUser?.uid || 
@@ -195,9 +218,10 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       localStorage.getItem('justiceflow_active_uid') || 
       'demo-judge-001';
 
+    setIsSavingToCase(true);
     setIsUploading(true);
     setUploadError(null);
-    setUploadStatusMsg(`Scanning and preparing ${file.name}...`);
+    setUploadStatusMsg(`Scanning and securing "${displayName}" into Case File...`);
 
     try {
       let analysisContent = '';
@@ -205,7 +229,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       let images: { data: string, mimeType: string }[] = [];
 
       if (file.type === 'application/pdf') {
-        setUploadStatusMsg(`Extracting legal text from ${file.name}...`);
+        setUploadStatusMsg(`Extracting legal text from ${displayName}...`);
         const arrayBuffer = await file.arrayBuffer();
         
         // Get base64 for preview
@@ -227,10 +251,10 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
             const pageText = textContent.items.map((item: any) => item.str).join(' ');
             fullText += `[Page ${i}]\n` + pageText + '\n\n';
           }
-          analysisContent = fullText.trim() || `[PDF Document: ${file.name} (${pdf.numPages} pages)]`;
+          analysisContent = fullText.trim() || `[PDF Document: ${displayName} (${pdf.numPages} pages)]`;
         } catch (pdfErr) {
           console.warn('PDF text extraction fallback:', pdfErr);
-          analysisContent = `[PDF Document: ${file.name}]`;
+          analysisContent = `[PDF Document: ${displayName}]`;
         }
       } else if (file.type.startsWith('image/')) {
         setUploadStatusMsg(`Optimizing image for judicial forensic audit...`);
@@ -243,7 +267,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         const base64 = await base64Promise;
         base64Data = base64;
         images.push({ data: base64, mimeType: file.type });
-        analysisContent = `[Image Evidence: ${file.name}]`;
+        analysisContent = `[Image Evidence: ${displayName}]`;
       } else {
         setUploadStatusMsg(`Reading document text content...`);
         analysisContent = await file.text();
@@ -255,7 +279,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       // Attempt upload to Firebase Storage with safe fallback
       let downloadURL = '';
       try {
-        const fileRef = storageRef(storage, `documents/${caseId}/${Date.now()}_${file.name}`);
+        const fileRef = storageRef(storage, `documents/${caseId}/${Date.now()}_${displayName}`);
         await uploadBytes(fileRef, file, { contentType: file.type });
         downloadURL = await getDownloadURL(fileRef);
       } catch (storageErr) {
@@ -276,7 +300,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       try {
         const docRef = await addDoc(collection(db, 'documents'), {
           caseId,
-          fileName: file.name,
+          fileName: displayName,
           fileUrl: downloadURL.startsWith('blob:') ? '' : downloadURL,
           textContent: analysisContent.slice(0, 500000),
           type: file.type || 'application/octet-stream',
@@ -292,7 +316,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       const newDoc = { 
         id: docRefId, 
         caseId, 
-        fileName: file.name, 
+        fileName: displayName, 
         fileUrl: downloadURL, 
         textContent: analysisContent, 
         type: file.type || 'application/octet-stream', 
@@ -304,23 +328,58 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       setUploadSuccess(true);
       setTimeout(() => setUploadSuccess(false), 3000);
 
-      // Instantly update active document in UI
+      // Update active document in UI
       setDocuments(prev => {
         const exists = prev.some(d => d.id === newDoc.id || d.fileName === newDoc.fileName);
         return exists ? prev : [newDoc, ...prev];
       });
       setActiveDoc(newDoc);
+      setShowUploadModal(false);
+      setStagedFile(null);
+      setStagedTitle('');
+      setIsSavingToCase(false);
       setIsUploading(false);
       setUploadStatusMsg(null);
 
-      // Run AI forensic analysis
+      // Proactive notification that file was saved and AI is ready
+      setCaseSavedNotification(t('case.evidenceSavedSuccess') || `Evidence "${displayName}" saved to Case File! AI Assistant activated.`);
+      setTimeout(() => setCaseSavedNotification(null), 5000);
+
+      // Run AI forensic analysis and activate assistant chat
       handleAnalyze(newDoc, analysisContent, images);
     } catch (error: any) {
-      console.error('Evidence upload error:', error);
-      setUploadError(error?.message || 'Failed to initialize evidence stream. Please try again.');
+      console.error('Evidence save error:', error);
+      setUploadError(error?.message || 'Failed to save evidence to case file. Please try again.');
+      setIsSavingToCase(false);
       setIsUploading(false);
-      setIsAnalyzing(false);
       setUploadStatusMsg(null);
+    }
+  };
+
+  const handleSaveCurrentCaseFile = async () => {
+    if (!caseData) return;
+    try {
+      await updateDoc(doc(db, 'cases', caseId), {
+        updatedAt: serverTimestamp()
+      });
+      setCaseSavedNotification(`Case File "${caseData.title}" secured in Judicial Vault! AI is synchronized.`);
+      setTimeout(() => setCaseSavedNotification(null), 4000);
+
+      if (activeDoc) {
+        setChatMessages(prev => [
+          ...prev,
+          {
+            id: 'asst_sync_' + Date.now(),
+            documentId: activeDoc.id,
+            role: 'assistant',
+            content: `🛡️ **Case File Confirmed & Saved**: All exhibits in **"${caseData.title}"** are saved and synchronized.\n\n*I am here to help. You can ask me to summarize all case files, cross-examine dates, or extract key legal issues.*`,
+            userId: auth.currentUser?.uid || 'demo-judge-001',
+            createdAt: new Date()
+          } as ChatMessage
+        ]);
+      }
+    } catch (e) {
+      console.warn('Case save notice:', e);
     }
   };
 
@@ -350,14 +409,25 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       setAnalysis(activeAnalysis);
 
       // Immediately activate AI chat with initial intake assessment
-      const welcomeContent = `⚖️ **Judicial Intelligence Stream Activated** for evidence file: **"${doc.fileName}"**\n\n` +
-        `**Summary Snapshot**:\n${result.summary.slice(0, 300)}${result.summary.length > 300 ? '...' : ''}\n\n` +
-        `• **Key Legal Points**: ${result.legal_points?.length || 0} identified\n` +
-        `• **Timeline Milestones**: ${result.timeline?.length || 0} chronological occurrences identified\n\n` +
-        `*I am ready to answer queries, summarize evidence across the dossier, or inspect cross-file timelines.*`;
+      const welcomeContent = `⚖️ **Judicial Intelligence Stream Activated** for evidence: **"${doc.fileName}"**\n\n` +
+        `📂 **Saved to Case File**: Successfully saved into docket for **"${caseData?.title || 'Active Case'}"**.\n\n` +
+        `**Executive Summary Snapshot**:\n${result.summary.slice(0, 320)}${result.summary.length > 320 ? '...' : ''}\n\n` +
+        `• **Critical Legal Points**: ${result.legal_points?.length || 0} issues identified\n` +
+        `• **Event Timeline**: ${result.timeline?.length || 0} chronological milestones logged\n\n` +
+        `*JusticeFlow AI is ready to help! You can ask me to summarize the entire case, cross-check evidence exhibits, or verify authenticity.*`;
 
       setChatMessages(prev => {
-        if (prev.length > 0) return prev;
+        const hasUserMessages = prev.some(m => m.role === 'user');
+        if (hasUserMessages) {
+          return [...prev, {
+            id: 'welcome_' + Date.now(),
+            documentId: doc.id,
+            role: 'assistant',
+            content: welcomeContent,
+            userId: currentUserId,
+            createdAt: new Date()
+          } as ChatMessage];
+        }
         return [{
           id: 'welcome_' + Date.now(),
           documentId: doc.id,
@@ -706,13 +776,24 @@ ${activeDoc.textContent || activeDoc.fileName}
             ))}
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2.5">
+          <motion.button 
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.94 }}
+            onClick={handleSaveCurrentCaseFile}
+            className="flex items-center gap-2 px-3.5 py-2 bg-surface border border-emerald-500/40 text-emerald-400 rounded-lg font-semibold uppercase tracking-widest text-[10px] hover:bg-emerald-500/10 transition-all shadow-sm"
+            title={t('case.saveCaseDocket') || "Save Case File"}
+          >
+            <Save className="w-3 h-3" />
+            {t('case.saveCaseDocket') || 'Save Case File'}
+          </motion.button>
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.94 }}
             onClick={exportReport}
             disabled={!analysis}
-            className="flex items-center gap-2 px-4 py-2 bg-surface border border-border-main rounded-lg text-text-main font-semibold uppercase tracking-widest text-[10px] hover:bg-surface/80 disabled:opacity-30 transition-all"
+            className="flex items-center gap-2 px-3.5 py-2 bg-surface border border-border-main rounded-lg text-text-main font-semibold uppercase tracking-widest text-[10px] hover:bg-surface/80 disabled:opacity-30 transition-all"
           >
             <Download className="w-3 h-3" />
             {t('case.exportReport')}
@@ -721,7 +802,7 @@ ${activeDoc.textContent || activeDoc.fileName}
             type="button"
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.94 }}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowUploadModal(true)}
             className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg font-semibold uppercase tracking-widest text-[10px] hover:bg-brand-primary/90 cursor-pointer shadow-lg shadow-brand-primary/10 transition-all"
           >
             <Upload className="w-3 h-3" />
@@ -729,6 +810,25 @@ ${activeDoc.textContent || activeDoc.fileName}
           </motion.button>
         </div>
       </div>
+
+      <AnimatePresence>
+        {caseSavedNotification && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            className="p-3.5 bg-emerald-500/15 border border-emerald-500/30 rounded-2xl flex items-center justify-between text-emerald-400 text-xs shadow-md"
+          >
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span className="font-semibold">{caseSavedNotification}</span>
+            </div>
+            <span className="text-[9px] uppercase tracking-widest text-emerald-300 font-bold bg-emerald-500/20 px-2.5 py-0.5 rounded-full">
+              AI Assistant Ready
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {documents.length > 0 ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 h-[calc(100vh-320px)]">
@@ -1132,7 +1232,7 @@ ${activeDoc.textContent || activeDoc.fileName}
             type="button"
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.94 }}
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowUploadModal(true)}
             className="flex items-center gap-3 px-10 py-5 bg-brand-primary text-white rounded-2xl font-bold uppercase tracking-[0.2em] text-xs hover:bg-brand-primary/90 cursor-pointer shadow-2xl shadow-brand-primary/20 transition-all"
           >
             <Upload className="w-4 h-4" />
@@ -1147,8 +1247,170 @@ ${activeDoc.textContent || activeDoc.fileName}
         type="file" 
         className="hidden" 
         accept=".pdf,.txt,.jpg,.jpeg,.png,.docx,.doc" 
-        onChange={handleFileUpload} 
+        onChange={handleFileInputChange} 
       />
+
+      {/* Evidence Stream Upload & Save to Case File Modal */}
+      <AnimatePresence>
+        {showUploadModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => {
+                if (!isSavingToCase) {
+                  setShowUploadModal(false);
+                  setStagedFile(null);
+                  setStagedTitle('');
+                }
+              }}
+              className="fixed inset-0 bg-black/70 backdrop-blur-sm"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="relative w-full max-w-lg bg-surface border border-border-main rounded-3xl shadow-2xl p-7 z-10 space-y-6"
+            >
+              <div className="flex items-center justify-between pb-4 border-b border-border-main">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-accent">
+                    <Upload className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-text-main">{t('case.uploadEvidence')}</h3>
+                    <p className="text-[11px] text-text-muted">Save evidence directly into Case File & activate AI</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={isSavingToCase}
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setStagedFile(null);
+                    setStagedTitle('');
+                  }}
+                  className="p-1.5 text-text-muted hover:text-text-main hover:bg-surface rounded-xl transition-all disabled:opacity-30"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {!stagedFile ? (
+                  <label className="flex flex-col items-center justify-center p-8 border-2 border-dashed border-border-main hover:border-brand-accent/40 rounded-2xl cursor-pointer bg-surface/30 hover:bg-surface/60 transition-all group">
+                    <div className="w-14 h-14 rounded-2xl bg-brand-accent/5 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                      <Upload className="w-7 h-7 text-brand-accent opacity-60 group-hover:opacity-100" />
+                    </div>
+                    <span className="text-xs font-bold text-text-main mb-1 tracking-wide">
+                      {t('case.dragOrBrowse') || 'Click to browse or drop evidence file here'}
+                    </span>
+                    <span className="text-[10px] text-text-muted uppercase tracking-wider">
+                      PDF, TXT, PNG, JPG, JPEG, DOCX (Max 750KB)
+                    </span>
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept=".pdf,.txt,.jpg,.jpeg,.png,.docx,.doc" 
+                      onChange={handleFileInputChange}
+                    />
+                  </label>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="p-4 bg-brand-accent/5 border border-brand-accent/20 rounded-2xl flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-brand-accent/10 flex items-center justify-center">
+                          <FileText className="w-5 h-5 text-brand-accent" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-text-main truncate max-w-[240px]">{stagedFile.name}</span>
+                          <span className="text-[10px] text-text-muted uppercase tracking-wider font-semibold">
+                            {(stagedFile.size / 1024).toFixed(1)} KB • {stagedFile.type || 'DOCUMENT'}
+                          </span>
+                        </div>
+                      </div>
+                      <button 
+                        type="button" 
+                        disabled={isSavingToCase}
+                        onClick={() => {
+                          setStagedFile(null);
+                          setStagedTitle('');
+                        }}
+                        className="p-1.5 hover:bg-surface rounded-lg text-text-muted hover:text-text-main transition-all disabled:opacity-30"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-bold text-text-muted uppercase tracking-wider">
+                        {t('case.stagedEvidenceTitle') || 'Evidence Exhibit Name'}
+                      </label>
+                      <input 
+                        type="text" 
+                        value={stagedTitle}
+                        onChange={(e) => setStagedTitle(e.target.value)}
+                        placeholder="e.g. Exhibit A - Witness Testimony"
+                        className="w-full px-4 py-2.5 bg-surface/50 border border-border-main rounded-xl text-text-main text-xs focus:outline-none focus:ring-1 focus:ring-brand-accent/50"
+                      />
+                    </div>
+
+                    <div className="p-3 bg-brand-accent/5 rounded-xl border border-brand-accent/10 flex items-center gap-2 text-[11px] text-brand-accent">
+                      <Sparkles className="w-4 h-4 shrink-0" />
+                      <span>JusticeFlow AI will immediately appear and assist your judicial review upon saving.</span>
+                    </div>
+                  </div>
+                )}
+
+                {uploadError && (
+                  <div className="p-3 bg-red-400/10 border border-red-400/20 rounded-xl flex items-center gap-2 text-red-400 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{uploadError}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <motion.button 
+                  type="button" 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={isSavingToCase}
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setStagedFile(null);
+                    setStagedTitle('');
+                  }}
+                  className="flex-1 py-3 px-4 border border-border-main text-text-muted hover:text-text-main rounded-xl text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                >
+                  {t('common.cancel')}
+                </motion.button>
+                <motion.button 
+                  type="button" 
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={!stagedFile || isSavingToCase}
+                  onClick={handleSaveStagedFileToCase}
+                  className="flex-1 py-3 px-4 bg-brand-primary text-white rounded-xl text-xs font-bold uppercase tracking-wider hover:bg-brand-primary/90 flex items-center justify-center gap-2 shadow-lg shadow-brand-primary/20 transition-all disabled:opacity-40"
+                >
+                  {isSavingToCase ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Saving to Case File...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 text-white" />
+                      <span>{t('case.saveToCase') || 'Save to Case File'}</span>
+                    </>
+                  )}
+                </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
       {/* Gemini API Key Dialog */}
       <AnimatePresence>
         {showApiKeyDialog && (

@@ -78,6 +78,12 @@
     "query1": "Summarize the case across all uploaded case files.",
     "query2": "Identify potential witness contradictions.",
     "query3": "List all mentioned dates and their significance.",
-    "query4": "What are the relevant precedents for this case?"
+    "query4": "What are the relevant precedents for this case?",
+    "saveToCase": "Save to Case File",
+    "saveCaseDocket": "Save Case File",
+    "saveAndLaunchAI": "Save to Case File & Launch AI",
+    "stagedEvidenceTitle": "Evidence Exhibit Name",
+    "evidenceSavedSuccess": "Evidence saved to case file! AI Assistant activated.",
+    "dragOrBrowse": "Click to browse or drop evidence file here"
   }
 }
