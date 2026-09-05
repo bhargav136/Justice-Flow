@@ -37,8 +37,22 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
   const [editingCase, setEditingCase] = useState<Case | null>(null);
   const [newCaseTitle, setNewCaseTitle] = useState('');
   const [newCaseDescription, setNewCaseDescription] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>(() => {
+    try {
+      const saved = localStorage.getItem('justiceflow_dashboard_filter');
+      if (saved === 'all' || saved === 'open' || saved === 'closed') {
+        return saved;
+      }
+    } catch (e) {}
+    return 'all';
+  });
+  const [completedNotice, setCompletedNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('justiceflow_dashboard_filter', statusFilter);
+    } catch (e) {}
+  }, [statusFilter]);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [processingMessage, setProcessingMessage] = useState<string | null>(null);
@@ -348,6 +362,11 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
       localStorage.setItem(`justiceflow_case_data_${caseItem.id}`, JSON.stringify(updatedCase));
     } catch (err) {}
 
+    if (newStatus === 'closed') {
+      setCompletedNotice(`🏆 "${caseItem.title}" marked as Completed! Moved to Completed Cases section.`);
+      setTimeout(() => setCompletedNotice(null), 5000);
+    }
+
     // 3. Persist to Firestore asynchronously
     try {
       await updateDoc(doc(db, 'cases', caseItem.id), { status: newStatus });
@@ -487,6 +506,63 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
           ))}
         </div>
       </div>
+
+      {/* Floating Notice when a case is completed */}
+      {completedNotice && (
+        <motion.div
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          className="p-3.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs flex items-center justify-between shadow-md"
+        >
+          <div className="flex items-center gap-2.5">
+            <CheckCircle2 className="w-4 h-4 shrink-0" />
+            <span className="font-semibold">{completedNotice}</span>
+          </div>
+          {statusFilter !== 'closed' && (
+            <button
+              type="button"
+              onClick={() => setStatusFilter('closed')}
+              className="px-3 py-1 rounded-xl bg-emerald-500 text-white font-bold text-[10px] uppercase tracking-wider hover:bg-emerald-600 transition-all shadow-sm"
+            >
+              View in Completed Cases →
+            </button>
+          )}
+        </motion.div>
+      )}
+
+      {/* Dedicated Completed Cases Section Header */}
+      {statusFilter === 'closed' && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-emerald-500/5"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-400 shrink-0">
+              <CheckCircle2 className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-text-main">Completed Cases Archive</h3>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[10px] font-bold uppercase tracking-wider">
+                  {filteredCases.length} {filteredCases.length === 1 ? 'Case' : 'Cases'}
+                </span>
+              </div>
+              <p className="text-xs text-text-muted mt-0.5">
+                All proceedings finalized. Evidence files, forensic analyses, and audit logs are safely archived.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setStatusFilter('all')}
+            className="px-4 py-2 rounded-xl bg-surface hover:bg-surface/80 border border-border-main text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-text-main transition-all shrink-0 self-start sm:self-auto"
+          >
+            View All Cases ({cases.length})
+          </button>
+        </motion.div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredCases.map((c) => (

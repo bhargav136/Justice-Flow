@@ -279,6 +279,10 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         const updatedDash = dashCases.map((c: any) => c.id === caseId ? { ...c, status: newStatus } : c);
         localStorage.setItem('justiceflow_dashboard_cases', JSON.stringify(updatedDash));
       }
+      if (isNowCompleted) {
+        // Direct dashboard to automatically open the Completed Cases section
+        localStorage.setItem('justiceflow_dashboard_filter', 'closed');
+      }
       if (documents.length > 0) {
         localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify(documents));
       } else if (activeDoc) {
@@ -295,15 +299,15 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       }
     } catch (e) {}
 
-    // 3. Trigger immediate user-facing notification
+    // 3. User notification & automatic navigation to Completed Cases section
     if (isNowCompleted) {
-      setCaseSavedNotification(`🏆 Case "${caseData.title}" marked as Completed & saved in Completed Cases!`);
+      setCaseSavedNotification(`🏆 Case "${caseData.title}" marked as Completed! Moving to Completed Cases section...`);
       const totalDocsCount = documents.length > 0 ? documents.length : (activeDoc ? 1 : 0);
       const completionMsg: ChatMessage = {
         id: 'asst_completed_' + Date.now(),
         documentId: activeDoc?.id || 'case_' + caseId,
         role: 'assistant',
-        content: `🏆 **Case Marked as Completed & Saved**: The judicial proceedings for **"${caseData.title}"** have been marked as completed.\n\nAll evidence exhibits (${totalDocsCount} file${totalDocsCount === 1 ? '' : 's'}), forensic analysis, and audit trails are secured in **Completed Cases**.\n\nYou can review this case file at any time from the Dashboard under **Completed Cases**.`,
+        content: `🏆 **Case Marked as Completed & Saved**: The judicial proceedings for **"${caseData.title}"** have been marked as completed.\n\nAll evidence exhibits (${totalDocsCount} file${totalDocsCount === 1 ? '' : 's'}), forensic analysis, and audit trails are secured in **Completed Cases**.\n\nYou are now being taken to the **Completed Cases** section on your Dashboard.`,
         userId: auth.currentUser?.uid || 'demo-judge-001',
         createdAt: new Date()
       } as ChatMessage;
@@ -320,10 +324,15 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
           });
         } catch (e) {}
       }
+
+      // Smoothly navigate back to Completed Cases section on Dashboard
+      setTimeout(() => {
+        onBack();
+      }, 1100);
     } else {
       setCaseSavedNotification(`🔄 Case "${caseData.title}" status updated to In Progress.`);
+      setTimeout(() => setCaseSavedNotification(null), 4000);
     }
-    setTimeout(() => setCaseSavedNotification(null), 5000);
 
     // 4. Persist to Firestore asynchronously
     try {
