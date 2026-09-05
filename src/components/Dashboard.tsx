@@ -128,18 +128,31 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
           base64Data = btoa(unescape(encodeURIComponent(analysisContent)));
         }
 
-        // Upload to storage
+        // Upload to storage with fallback
         setProcessingMessage('Uploading evidence to vault...');
-        const storageRef = ref(storage, `documents/${caseRef.id}/${selectedFile.name}`);
-        await uploadBytes(storageRef, selectedFile, { contentType: selectedFile.type });
-        const downloadURL = await getDownloadURL(storageRef);
+        let downloadURL = '';
+        try {
+          const storageRef = ref(storage, `documents/${caseRef.id}/${Date.now()}_${selectedFile.name}`);
+          await uploadBytes(storageRef, selectedFile, { contentType: selectedFile.type });
+          downloadURL = await getDownloadURL(storageRef);
+        } catch (storageErr) {
+          console.warn('Storage upload fallback triggered in Dashboard:', storageErr);
+        }
+
+        if (!downloadURL) {
+          if (base64Data && base64Data.length < 500000) {
+            downloadURL = `data:${selectedFile.type || 'application/octet-stream'};base64,${base64Data}`;
+          } else {
+            downloadURL = URL.createObjectURL(selectedFile);
+          }
+        }
 
         setProcessingMessage('Saving document metadata...');
         const docRef = await addDoc(collection(db, 'documents'), {
           caseId: caseRef.id,
           fileName: selectedFile.name,
-          fileUrl: downloadURL,
-          textContent: analysisContent,
+          fileUrl: downloadURL.startsWith('blob:') ? '' : downloadURL,
+          textContent: analysisContent.slice(0, 500000),
           type: selectedFile.type,
           fileSize: selectedFile.size,
           userId: currentUserId,
