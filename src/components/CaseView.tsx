@@ -962,7 +962,9 @@ ${activeDoc.textContent || activeDoc.fileName}
                 </motion.button>
               )}
             </div>
-            <p className="text-sm text-text-muted leading-relaxed max-w-2xl">{caseData?.description}</p>
+            {caseData?.description ? (
+              <p className="text-sm text-text-muted leading-relaxed max-w-2xl">{caseData.description}</p>
+            ) : null}
           </div>
           
           {activeDoc && (

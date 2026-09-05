@@ -558,11 +558,14 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                 />
               </div>
               <div className="space-y-2">
-                <label className="block text-[10px] font-bold text-text-muted uppercase tracking-[0.2em] ml-1">{t('dashboard.caseDescription')}</label>
+                <div className="flex items-center justify-between ml-1">
+                  <label className="block text-[10px] font-bold text-text-muted uppercase tracking-[0.2em]">{t('dashboard.caseDescription')}</label>
+                  <span className="text-[9px] font-semibold text-text-muted uppercase tracking-wider bg-surface px-2 py-0.5 rounded border border-border-main">Optional</span>
+                </div>
                 <textarea
                   value={newCaseDescription}
                   onChange={(e) => setNewCaseDescription(e.target.value)}
-                  placeholder="Provide a brief overview of the judicial matter..."
+                  placeholder="Provide a brief overview of the judicial matter (Optional)..."
                   rows={3}
                   className="w-full px-5 py-3.5 bg-surface/50 border border-border-main rounded-xl text-text-main placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-brand-accent/50 transition-all resize-none"
                 />
