@@ -71,3 +71,33 @@ body {
   @apply bg-border-main rounded-full hover:bg-brand-accent/50 transition-colors;
 }
 
+/* Tactile button click feedback & animations */
+button:not(:disabled),
+[role="button"]:not(:disabled) {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(0.94);
+  filter: brightness(0.95);
+}
+
+@keyframes click-pop {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.92);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.btn-bounce:active {
+  animation: click-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+

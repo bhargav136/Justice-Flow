@@ -155,12 +155,14 @@ export default function ProfileModal({ isOpen, onClose, profile, onSave }: Profi
                 <p className="text-xs text-text-muted">Manage your identity, designation, and courtroom bio</p>
               </div>
             </div>
-            <button
+            <motion.button
+              whileHover={{ scale: 1.1, rotate: 90 }}
+              whileTap={{ scale: 0.9 }}
               onClick={onClose}
               className="p-2 text-text-muted hover:text-text-main hover:bg-surface rounded-xl transition-all"
             >
               <X className="w-5 h-5" />
-            </button>
+            </motion.button>
           </div>
 
           {/* Form */}
@@ -330,16 +332,20 @@ export default function ProfileModal({ isOpen, onClose, profile, onSave }: Profi
 
             {/* Footer Buttons */}
             <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-main">
-              <button
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.94 }}
                 onClick={onClose}
                 disabled={isSaving}
                 className="px-5 py-2.5 rounded-xl border border-border-main text-text-muted hover:text-text-main hover:bg-surface transition-all text-xs font-semibold uppercase tracking-wider disabled:opacity-50"
               >
                 Cancel
-              </button>
-              <button
+              </motion.button>
+              <motion.button
                 type="submit"
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.94 }}
                 disabled={isSaving}
                 className="px-6 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary/90 text-white transition-all text-xs font-semibold uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-brand-primary/20 disabled:opacity-50"
               >
@@ -354,7 +360,7 @@ export default function ProfileModal({ isOpen, onClose, profile, onSave }: Profi
                     Save Profile
                   </>
                 )}
-              </button>
+              </motion.button>
             </div>
           </form>
         </motion.div>

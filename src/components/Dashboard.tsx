@@ -245,13 +245,15 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
           <h2 className="text-3xl font-bold text-text-main tracking-tight">{t('dashboard.title')}</h2>
           <p className="text-text-muted font-medium uppercase tracking-widest text-[10px] mt-1">{t('dashboard.subtitle')}</p>
         </div>
-        <button
+        <motion.button
+          whileHover={{ scale: 1.02 }}
+          whileTap={{ scale: 0.94 }}
           onClick={() => setShowNewCaseModal(true)}
           className="bg-brand-primary text-white px-6 py-3 rounded-xl font-semibold hover:bg-brand-primary/90 transition-all flex items-center gap-2 shadow-lg shadow-brand-primary/10"
         >
           <Plus className="w-4 h-4" />
           {t('dashboard.newCase')}
-        </button>
+        </motion.button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -288,6 +290,8 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
           <motion.div
             key={c.id}
             layoutId={c.id}
+            whileHover={{ y: -3, scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
             onClick={() => onSelectCase(c.id)}
             className={`group glass-card p-6 rounded-2xl hover:border-brand-accent/40 transition-all cursor-pointer relative overflow-hidden ${
               c.status === 'closed' ? 'border-emerald-500/30 bg-emerald-500/[0.02]' : ''
@@ -296,8 +300,10 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
             <div className="flex justify-between items-start mb-4 relative z-10">
               <div className="flex items-center gap-3">
                 {/* Interactive Checkbox Button */}
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.85 }}
                   title={c.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('dashboard.markCompleted') || 'Mark as Completed')}
                   onClick={(e) => handleToggleCaseStatus(e, c)}
                   className={`p-2.5 rounded-xl border transition-all flex items-center justify-center ${
@@ -311,25 +317,29 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                   ) : (
                     <Square className="w-5 h-5" />
                   )}
-                </button>
+                </motion.button>
                 <div className="bg-surface p-3 rounded-xl border border-border-main">
                   <Folder className="w-5 h-5 text-brand-accent" />
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
-                <button
+                <motion.button
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.85 }}
                   onClick={(e) => openEditModal(e, c)}
                   className="p-2.5 text-text-muted hover:text-brand-accent hover:bg-surface/50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                 >
                   <Edit2 className="w-4 h-4" />
-                </button>
-                <button
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.85 }}
                   onClick={(e) => handleDeleteCase(e, c.id)}
                   className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 className="w-4 h-4" />
-                </button>
+                </motion.button>
               </div>
             </div>
             
@@ -348,8 +358,10 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                 <Clock className="w-3 h-3 text-text-muted" />
                 {c.createdAt?.toDate ? c.createdAt.toDate().toLocaleDateString() : 'Just now'}
               </div>
-              <button
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.92 }}
                 onClick={(e) => handleToggleCaseStatus(e, c)}
                 className={`px-2.5 py-1 rounded-full border text-[9px] font-bold tracking-wider uppercase transition-all flex items-center gap-1.5 ${
                   c.status === 'closed'
@@ -368,7 +380,7 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                     <span>{t('dashboard.inProgress') || 'In Progress'}</span>
                   </>
                 )}
-              </button>
+              </motion.button>
             </div>
             
             <div className="mt-6 pt-4 border-t border-border-main flex items-center text-brand-accent font-bold text-[10px] uppercase tracking-widest group-hover:gap-2 transition-all">
@@ -500,8 +512,10 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
               )}
 
               <div className="flex gap-3 pt-4">
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
                   disabled={!!processingMessage}
                   onClick={() => {
                     setShowNewCaseModal(false);
@@ -513,9 +527,11 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                   className="flex-1 px-6 py-3 border border-border-main text-text-muted font-semibold uppercase tracking-widest text-[10px] rounded-xl hover:bg-surface/50 transition-all disabled:opacity-50"
                 >
                   {t('common.cancel')}
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   type="submit"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
                   disabled={!!processingMessage || isSuccess}
                   className={cn(
                     "flex-1 px-6 py-3 font-semibold uppercase tracking-widest text-[10px] rounded-xl transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-50",
@@ -535,7 +551,7 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                   ) : (
                     editingCase ? t('common.save') : t('dashboard.createCase')
                   )}
-                </button>
+                </motion.button>
               </div>
             </form>
           </motion.div>

@@ -402,17 +402,21 @@ function AppContent() {
         </div>
 
         <div className="flex items-center gap-6">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9, rotate: 18 }}
             onClick={toggleTheme}
             className="p-2.5 text-text-muted hover:text-brand-accent hover:bg-brand-accent/10 rounded-xl transition-all"
             title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
           >
             {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
-          </button>
+          </motion.button>
 
           <LanguageSwitcher />
 
-          <div 
+          <motion.div 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.97 }}
             onClick={() => setIsProfileModalOpen(true)}
             className="flex items-center gap-4 pr-6 border-r border-border-main cursor-pointer group hover:opacity-95 transition-all"
             title="Click to view & edit your profile"
@@ -438,14 +442,16 @@ function AppContent() {
                 alt="Judicial Avatar" 
               />
             </div>
-          </div>
-          <button
+          </motion.div>
+          <motion.button
+            whileHover={{ scale: 1.1 }}
+            whileTap={{ scale: 0.9 }}
             onClick={() => setShowSignOutConfirm(true)}
             className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
             title={t('auth.signOut') || 'Sign Out'}
           >
             <LogOut className="w-5 h-5" />
-          </button>
+          </motion.button>
         </div>
       </nav>
 
@@ -503,15 +509,19 @@ function AppContent() {
               </p>
 
               <div className="flex items-center justify-end gap-3">
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => setShowSignOutConfirm(false)}
                   className="px-5 py-2.5 rounded-xl border border-border-main text-text-muted hover:text-text-main hover:bg-surface/50 text-xs font-semibold uppercase tracking-wider transition-all"
                 >
                   {t('common.cancel') || 'Cancel'}
-                </button>
-                <button
+                </motion.button>
+                <motion.button
                   type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.94 }}
                   onClick={() => {
                     setShowSignOutConfirm(false);
                     logOut();
@@ -520,7 +530,7 @@ function AppContent() {
                 >
                   <LogOut className="w-4 h-4" />
                   {t('auth.signOut') || 'Sign Out'}
-                </button>
+                </motion.button>
               </div>
             </motion.div>
           </div>

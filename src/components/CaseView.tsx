@@ -421,8 +421,10 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
               </div>
               <h2 className="text-2xl font-bold text-text-main tracking-tight">{caseData?.title || 'Loading Case...'}</h2>
               {caseData && (
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.9 }}
                   onClick={handleToggleCaseStatus}
                   title={caseData.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('dashboard.markCompleted') || 'Mark as Completed')}
                   className={`px-3 py-1.5 rounded-xl border text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-2 ${
@@ -442,7 +444,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
                       <span>{t('dashboard.inProgress') || 'In Progress'}</span>
                     </>
                   )}
-                </button>
+                </motion.button>
               )}
             </div>
             <p className="text-sm text-text-muted leading-relaxed max-w-2xl">{caseData?.description}</p>
@@ -494,15 +496,22 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-6">
-          <button onClick={onBack} className="flex items-center gap-2 text-text-muted hover:text-brand-accent transition-all font-semibold uppercase tracking-widest text-[10px]">
+          <motion.button 
+            whileHover={{ x: -2 }}
+            whileTap={{ scale: 0.92 }}
+            onClick={onBack} 
+            className="flex items-center gap-2 text-text-muted hover:text-brand-accent transition-all font-semibold uppercase tracking-widest text-[10px]"
+          >
             <ArrowLeft className="w-3 h-3" />
             {t('common.back')}
-          </button>
+          </motion.button>
           <div className="h-6 w-px bg-border-main" />
           <div className="flex gap-2 overflow-x-auto max-w-[600px] pb-1 no-scrollbar">
             {documents.map(doc => (
-              <button
+              <motion.button
                 key={doc.id}
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.93 }}
                 onClick={() => setActiveDoc(doc)}
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap transition-all border",
@@ -512,24 +521,30 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
                 )}
               >
                 {doc.fileName}
-              </button>
+              </motion.button>
             ))}
           </div>
         </div>
         <div className="flex gap-3">
-          <button 
+          <motion.button 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.94 }}
             onClick={exportReport}
             disabled={!analysis}
             className="flex items-center gap-2 px-4 py-2 bg-surface border border-border-main rounded-lg text-text-main font-semibold uppercase tracking-widest text-[10px] hover:bg-surface/80 disabled:opacity-30 transition-all"
           >
             <Download className="w-3 h-3" />
             {t('case.exportReport')}
-          </button>
-            <label className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg font-semibold uppercase tracking-widest text-[10px] hover:bg-brand-primary/90 cursor-pointer shadow-lg shadow-brand-primary/10 transition-all">
+          </motion.button>
+          <motion.label 
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.94 }}
+            className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg font-semibold uppercase tracking-widest text-[10px] hover:bg-brand-primary/90 cursor-pointer shadow-lg shadow-brand-primary/10 transition-all"
+          >
             <Upload className="w-3 h-3" />
             {uploadSuccess ? t('common.confirm') : t('case.uploadEvidence')}
             <input type="file" className="hidden" accept=".pdf,.txt,.jpg,.jpeg,.png" onChange={handleFileUpload} />
-          </label>
+          </motion.label>
         </div>
       </div>
 
@@ -575,8 +590,10 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
               <div className="bg-surface/50 border-b border-border-main px-6 py-1 flex items-center justify-between">
                 <div className="flex gap-6">
                   {(['summary', 'legal_points', 'timeline', 'authenticity'] as const).map(tab => (
-                    <button
+                    <motion.button
                       key={tab}
+                      whileHover={{ scale: 1.04 }}
+                      whileTap={{ scale: 0.94 }}
                       onClick={() => setActiveTab(tab)}
                       className={cn(
                         "text-[10px] font-bold uppercase tracking-[0.2em] py-3 border-b-2 transition-all",
@@ -584,7 +601,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
                       )}
                     >
                       {tab.replace('_', ' ')}
-                    </button>
+                    </motion.button>
                   ))}
                 </div>
                 {isAnalyzing && (
@@ -791,8 +808,10 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
                   <h3 className="text-[10px] font-bold text-text-main uppercase tracking-[0.3em]">{t('case.chatInterface')}</h3>
                 </div>
 
-                <button
+                <motion.button
                   type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.92 }}
                   onClick={() => setShowApiKeyDialog(true)}
                   className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-surface border border-border-main hover:border-brand-accent text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-brand-accent transition-all shadow-sm"
                   title="Configure Google Gemini API Key"
@@ -809,7 +828,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
                       Set API Key
                     </span>
                   )}
-                </button>
+                </motion.button>
               </div>
 
               <div className="flex-1 overflow-y-auto p-8 space-y-6">
@@ -827,15 +846,17 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
                         t('case.query3'),
                         t('case.query4')
                       ].map((query, i) => (
-                        <button
+                        <motion.button
                           key={i}
+                          whileHover={{ scale: 1.02, x: 3 }}
+                          whileTap={{ scale: 0.96 }}
                           onClick={() => {
                             setChatInput(query);
                           }}
                           className="text-left p-4 bg-surface border border-border-main rounded-xl text-xs text-text-main font-medium hover:border-brand-accent/50 hover:bg-brand-accent/5 transition-all shadow-sm"
                         >
                           {query}
-                        </button>
+                        </motion.button>
                       ))}
                     </div>
                   </div>
@@ -878,13 +899,15 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
                     disabled={!activeDoc || isChatting}
                     className="w-full pl-6 pr-16 py-5 bg-surface/50 border border-border-main rounded-2xl text-text-main placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent/50 disabled:opacity-30 transition-all"
                   />
-                  <button
+                  <motion.button
                     type="submit"
+                    whileHover={{ scale: 1.08 }}
+                    whileTap={{ scale: 0.88 }}
                     disabled={!chatInput.trim() || isChatting}
                     className="absolute right-3 top-1/2 -translate-y-1/2 p-3 bg-brand-accent text-white rounded-xl hover:bg-brand-accent/80 transition-all disabled:opacity-30 shadow-lg shadow-brand-accent/20"
                   >
                     <Send className="w-5 h-5" />
-                  </button>
+                  </motion.button>
                 </div>
               </form>
             </div>
