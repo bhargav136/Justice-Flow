@@ -1,5 +1,5 @@
 import * as React from 'react';
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo } = React;
 import { useTranslation } from 'react-i18next';
 import { db, auth, storage, handleFirestoreError, OperationType } from '../firebase';
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy, updateDoc } from 'firebase/firestore';
@@ -27,6 +27,57 @@ interface CaseViewProps {
   caseId: string;
   onBack: () => void;
 }
+
+const PROMPT_SUGGESTIONS = [
+  {
+    category: 'Summary',
+    icon: '📑',
+    title: 'Summarize All Case Files',
+    text: 'Summarize the case across all uploaded case files.'
+  },
+  {
+    category: 'Timeline',
+    icon: '📅',
+    title: 'Extract Chronological Dates',
+    text: 'List all mentioned dates and their chronological significance.'
+  },
+  {
+    category: 'Contradictions',
+    icon: '⚖️',
+    title: 'Witness Contradictions',
+    text: 'Identify potential witness contradictions across exhibits.'
+  },
+  {
+    category: 'Forensics',
+    icon: '🔍',
+    title: 'Verify Authenticity & AI Probability',
+    text: 'Analyze the visual authenticity and forensic integrity of this evidence.'
+  },
+  {
+    category: 'Precedents',
+    icon: '📜',
+    title: 'Relevant Legal Precedents',
+    text: 'What are the relevant statutory provisions and legal precedents for this case?'
+  },
+  {
+    category: 'Disposal',
+    icon: '🏆',
+    title: 'Case Completion Readiness',
+    text: 'Are all evidentiary requirements fulfilled to mark this case as completed?'
+  },
+  {
+    category: 'Cross-Examine',
+    icon: '🔎',
+    title: 'Cross-Examine Statements',
+    text: 'Cross-examine statements and testimonies between the uploaded documents.'
+  },
+  {
+    category: 'Admissibility',
+    icon: '🛡️',
+    title: 'Evidence Admissibility Check',
+    text: 'Verify electronic evidence compliance under Section 65B of Indian Evidence Act.'
+  }
+];
 
 export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const { t } = useTranslation();
@@ -84,6 +135,20 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploadSuccess, setUploadSuccess] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const filteredSuggestions = useMemo(() => {
+    const q = chatInput.trim().toLowerCase();
+    if (!q) {
+      return PROMPT_SUGGESTIONS.slice(0, 6);
+    }
+    return PROMPT_SUGGESTIONS.filter(item => 
+      item.text.toLowerCase().includes(q) ||
+      item.title.toLowerCase().includes(q) ||
+      item.category.toLowerCase().includes(q)
+    );
+  }, [chatInput]);
+
   const [activeTab, setActiveTab] = useState<'summary' | 'legal_points' | 'timeline' | 'authenticity'>('summary');
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState(getGeminiApiKey());
@@ -968,43 +1033,65 @@ ${activeDoc.textContent || activeDoc.fileName}
         </div>
       </div>
 
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-6">
+      {/* Top Command Ribbon & Exhibit Tabs */}
+      <div className="glass-card p-2.5 rounded-2xl border border-border-main shadow-md flex flex-col xl:flex-row xl:items-center justify-between gap-3">
+        {/* Navigation & Exhibit Tabs */}
+        <div className="flex items-center gap-3 min-w-0 flex-1 overflow-hidden">
           <motion.button 
             whileHover={{ x: -2 }}
             whileTap={{ scale: 0.92 }}
             onClick={handleBack} 
-            className="flex items-center gap-2 text-text-muted hover:text-brand-accent transition-all font-semibold uppercase tracking-widest text-[10px]"
+            className="flex items-center gap-2 px-3 py-2 rounded-xl text-text-muted hover:text-brand-accent hover:bg-surface transition-all font-bold uppercase tracking-widest text-[10px] shrink-0 border border-transparent hover:border-border-main"
           >
-            <ArrowLeft className="w-3 h-3" />
-            {t('common.back')}
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>{t('common.back')}</span>
           </motion.button>
-          <div className="h-6 w-px bg-border-main" />
-          <div className="flex gap-2 overflow-x-auto max-w-[600px] pb-1 no-scrollbar">
+
+          <div className="h-5 w-px bg-border-main shrink-0" />
+
+          {/* Exhibits scrollable list */}
+          <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             {effectiveDocuments.map(doc => (
               <motion.button
                 key={doc.id}
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.93 }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.95 }}
                 onClick={() => setActiveDoc(doc)}
                 className={cn(
-                  "px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-widest whitespace-nowrap transition-all border",
+                  "px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase tracking-wider whitespace-nowrap transition-all border flex items-center gap-1.5",
                   activeDoc?.id === doc.id 
-                    ? "bg-brand-accent/10 border-brand-accent/30 text-brand-accent" 
-                    : "bg-surface border-border-main text-text-muted hover:border-text-muted"
+                    ? "bg-brand-accent/15 border-brand-accent/40 text-brand-accent shadow-sm" 
+                    : "bg-surface/80 border-border-main text-text-muted hover:border-text-muted hover:text-text-main"
                 )}
               >
-                {doc.fileName}
+                <FileText className="w-3 h-3 shrink-0" />
+                <span className="truncate max-w-[140px]">{doc.fileName}</span>
               </motion.button>
             ))}
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2.5">
+
+        {/* Symmetrical, Cohesive Action Button Bar */}
+        <div className="flex items-center gap-2 shrink-0 flex-wrap sm:flex-nowrap">
+          {/* 1. Upload Other File */}
+          <motion.button 
+            type="button"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold uppercase tracking-wider text-[10px] cursor-pointer shadow-sm transition-all border border-indigo-500/30"
+            title="Upload other exhibit to this case docket"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            <span className="whitespace-nowrap">{effectiveDocuments.length > 0 ? (t('case.uploadOtherFile') || 'Upload Other File') : (t('case.uploadEvidence') || 'Upload Evidence')}</span>
+          </motion.button>
+
+          {/* 2. Confirm & Save Case */}
           {activeDoc && (
             <motion.button 
               type="button"
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.94 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.95 }}
               onClick={async () => {
                 await handleSaveCurrentCaseFile();
                 if (!analysis && activeDoc && (activeDoc.textContent || activeDoc.fileUrl)) {
@@ -1013,50 +1100,45 @@ ${activeDoc.textContent || activeDoc.fileName}
                 const chatEl = document.getElementById('judicial-chat-section');
                 chatEl?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="flex items-center gap-2 px-3.5 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-bold uppercase tracking-widest text-[10px] cursor-pointer shadow-lg shadow-emerald-500/25 transition-all"
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold uppercase tracking-wider text-[10px] cursor-pointer shadow-sm transition-all border border-emerald-500/30"
               title="Confirm and Save Case File"
             >
-              <CheckCircle2 className="w-3.5 h-3.5 text-white" />
-              <span>{t('case.confirmAndSave') || 'Confirm & Save Case'}</span>
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span className="whitespace-nowrap">{t('case.confirmAndSave') || 'Confirm & Save Case'}</span>
             </motion.button>
           )}
+
+          {/* 3. Case Completed / Save to Completed */}
           {caseData && (
             <motion.button 
               type="button"
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.94 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handleToggleCaseStatus}
               className={cn(
-                "flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold uppercase tracking-widest text-[10px] cursor-pointer shadow-lg transition-all border",
+                "flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold uppercase tracking-wider text-[10px] cursor-pointer transition-all border",
                 caseData.status === 'closed'
-                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-emerald-500/10"
-                  : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-500/40 shadow-emerald-600/25"
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm"
+                  : "bg-surface hover:bg-emerald-500/10 border-border-main hover:border-emerald-500/40 text-text-muted hover:text-emerald-400 shadow-sm"
               )}
               title={caseData.status === 'closed' ? "Case is archived in Completed Cases. Click to reopen." : "Save and mark this case as Completed"}
             >
-              <FolderCheck className="w-3.5 h-3.5" />
-              <span>{caseData.status === 'closed' ? (t('case.caseCompletedSaved') || 'Case Completed (Saved)') : (t('case.markCaseCompleted') || 'Case Completed')}</span>
+              <FolderCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="whitespace-nowrap">{caseData.status === 'closed' ? (t('case.caseCompletedSaved') || 'Case Completed (Saved)') : (t('case.markCaseCompleted') || 'Case Completed')}</span>
             </motion.button>
           )}
+
+          {/* 4. Export Report */}
           <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.94 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
             onClick={exportReport}
             disabled={!analysis}
-            className="flex items-center gap-2 px-3.5 py-2 bg-surface border border-border-main rounded-lg text-text-main font-semibold uppercase tracking-widest text-[10px] hover:bg-surface/80 disabled:opacity-30 transition-all"
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface hover:bg-surface/80 border border-border-main text-text-main font-bold uppercase tracking-wider text-[10px] disabled:opacity-30 transition-all shadow-sm"
+            title="Export judicial analysis report"
           >
-            <Download className="w-3 h-3" />
-            {t('case.exportReport')}
-          </motion.button>
-          <motion.button 
-            type="button"
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.94 }}
-            onClick={() => setShowUploadModal(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-brand-primary text-white rounded-lg font-semibold uppercase tracking-widest text-[10px] hover:bg-brand-primary/90 cursor-pointer shadow-lg shadow-brand-primary/10 transition-all"
-          >
-            <Upload className="w-3 h-3" />
-            {effectiveDocuments.length > 0 ? (t('case.uploadOtherFile') || 'Upload Other File') : (t('case.uploadEvidence') || 'Upload Evidence')}
+            <Download className="w-3.5 h-3.5 text-text-muted" />
+            <span className="whitespace-nowrap">{t('case.exportReport')}</span>
           </motion.button>
         </div>
       </div>
@@ -1421,24 +1503,112 @@ ${activeDoc.textContent || activeDoc.fileName}
                 <div ref={chatEndRef} />
               </div>
 
-              <form onSubmit={handleSendMessage} className="p-6 bg-surface/50 border-t border-border-main">
+              <form 
+                onSubmit={(e) => {
+                  setShowSuggestions(false);
+                  handleSendMessage(e);
+                }} 
+                className="p-6 bg-surface/50 border-t border-border-main space-y-2.5"
+              >
+                {/* Interactive Suggestion Chips Bar */}
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  <div className="flex items-center gap-1 text-[9px] font-bold text-brand-accent uppercase tracking-wider shrink-0 pr-1">
+                    <Sparkles className="w-3 h-3 text-amber-300" />
+                    <span>Suggestions:</span>
+                  </div>
+                  {PROMPT_SUGGESTIONS.map((item, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        setChatInput(item.text);
+                        setShowSuggestions(false);
+                      }}
+                      className="px-2.5 py-1 rounded-xl bg-surface border border-border-main hover:border-brand-accent/40 text-[9px] font-medium text-text-muted hover:text-brand-accent whitespace-nowrap transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-sm hover:bg-brand-accent/10"
+                    >
+                      <span>{item.icon}</span>
+                      <span>{item.title}</span>
+                    </button>
+                  ))}
+                </div>
+
                 <div className="relative">
+                  {/* Real-time suggestions while typing */}
+                  <AnimatePresence>
+                    {showSuggestions && filteredSuggestions.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                        className="absolute bottom-full mb-3 left-0 right-0 glass-card p-3 rounded-2xl border border-brand-accent/40 shadow-2xl bg-brand-deep/95 backdrop-blur-xl z-20 space-y-2"
+                      >
+                        <div className="flex items-center justify-between px-2 pb-1.5 border-b border-border-main/70">
+                          <div className="flex items-center gap-1.5 text-[10px] font-bold text-brand-accent uppercase tracking-wider">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                            <span>AI Suggestions for Judicial Inquiry</span>
+                          </div>
+                          <button 
+                            type="button" 
+                            onClick={() => setShowSuggestions(false)}
+                            className="text-text-muted hover:text-text-main text-[10px] px-2 py-0.5 rounded-lg hover:bg-surface/50 transition-colors"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto no-scrollbar pt-1">
+                          {filteredSuggestions.map((item, idx) => (
+                            <motion.button
+                              key={idx}
+                              type="button"
+                              whileHover={{ scale: 1.02, x: 2 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={() => {
+                                setChatInput(item.text);
+                                setShowSuggestions(false);
+                              }}
+                              className="text-left p-2.5 rounded-xl bg-surface/80 hover:bg-brand-accent/15 border border-border-main hover:border-brand-accent/50 transition-all flex items-start gap-2.5 group cursor-pointer"
+                            >
+                              <span className="text-sm mt-0.5 shrink-0">{item.icon}</span>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-bold text-text-main group-hover:text-brand-accent transition-colors truncate">
+                                    {item.title}
+                                  </span>
+                                  <span className="text-[8px] font-semibold uppercase px-1.5 py-0.5 rounded bg-surface border border-border-main text-text-muted">
+                                    {item.category}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] text-text-muted line-clamp-1 group-hover:text-text-main transition-colors mt-0.5">
+                                  {item.text}
+                                </p>
+                              </div>
+                            </motion.button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
                   <input
                     type="text"
                     value={chatInput}
-                    onChange={(e) => setChatInput(e.target.value)}
-                    placeholder={t('case.chatPlaceholder')}
+                    onFocus={() => setShowSuggestions(true)}
+                    onChange={(e) => {
+                      setChatInput(e.target.value);
+                      setShowSuggestions(true);
+                    }}
+                    placeholder={t('case.chatPlaceholder') || 'Ask anything about the case, evidence exhibits, or legal issues...'}
                     disabled={!activeDoc || isChatting}
-                    className="w-full pl-6 pr-16 py-5 bg-surface/50 border border-border-main rounded-2xl text-text-main placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent/50 disabled:opacity-30 transition-all"
+                    className="w-full pl-6 pr-16 py-4 bg-surface/50 border border-border-main rounded-2xl text-text-main placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-brand-accent/50 disabled:opacity-30 transition-all text-xs"
                   />
                   <motion.button
                     type="submit"
                     whileHover={{ scale: 1.08 }}
                     whileTap={{ scale: 0.88 }}
                     disabled={!chatInput.trim() || isChatting}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-3 bg-brand-accent text-white rounded-xl hover:bg-brand-accent/80 transition-all disabled:opacity-30 shadow-lg shadow-brand-accent/20"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 bg-brand-accent text-white rounded-xl hover:bg-brand-accent/80 transition-all disabled:opacity-30 shadow-lg shadow-brand-accent/20 cursor-pointer"
                   >
-                    <Send className="w-5 h-5" />
+                    <Send className="w-4 h-4" />
                   </motion.button>
                 </div>
               </form>
