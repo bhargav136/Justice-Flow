@@ -1,6 +1,12 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const getAI = () => {
+  const key = process.env.GEMINI_API_KEY || (typeof window !== 'undefined' && (window as any).__GEMINI_API_KEY__) || '';
+  if (!key || key === 'MY_GEMINI_API_KEY') {
+    throw new Error('Gemini API Key is not configured. Please set GEMINI_API_KEY in Vercel Environment Variables.');
+  }
+  return new GoogleGenAI({ apiKey: key });
+};
 
 export const analyzeLegalDocument = async (fileName: string, textContent: string, images?: { data: string, mimeType: string }[]) => {
   const parts: any[] = [
@@ -53,7 +59,7 @@ ${textContent}`
     });
   }
 
-  const response = await ai.models.generateContent({
+  const response = await getAI().models.generateContent({
     model: "gemini-3-flash-preview",
     contents: [{ parts }],
     config: {
@@ -66,7 +72,7 @@ ${textContent}`
 };
 
 export const chatWithCase = async (documentContent: string, history: { role: 'user' | 'assistant', content: string }[], message: string) => {
-  const chat = ai.chats.create({
+  const chat = getAI().chats.create({
     model: "gemini-3-flash-preview",
     config: {
       systemInstruction: `You are JusticeFlow AI, a Judicial Intelligence Assistant. You are assisting a Magistrate in analyzing legal documents. 
