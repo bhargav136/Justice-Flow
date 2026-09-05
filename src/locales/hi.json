@@ -78,6 +78,9 @@
     "evidenceSavedSuccess": "साक्ष्य केस फ़ाइल में सहेजा गया! AI सहायक सक्रिय हो गया है।",
     "dragOrBrowse": "साक्ष्य फ़ाइल को यहाँ ब्राउज़ करें या ड्रॉप करें",
     "confirmAndSave": "केस की पुष्टि करें और सहेजें",
-    "uploadOtherFile": "अन्य फ़ाइल अपलोड करें"
+    "uploadOtherFile": "अन्य फ़ाइल अपलोड करें",
+    "markCaseCompleted": "केस पूर्ण हुआ",
+    "caseCompletedSaved": "केस पूर्ण (सहेजा गया)",
+    "saveToCompleted": "पूर्ण मामलों में सहेजें"
   }
 }

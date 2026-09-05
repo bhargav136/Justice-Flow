@@ -86,6 +86,9 @@
     "evidenceSavedSuccess": "Evidence saved to case file! AI Assistant activated.",
     "dragOrBrowse": "Click to browse or drop evidence file here",
     "confirmAndSave": "Confirm & Save Case",
-    "uploadOtherFile": "Upload Other File"
+    "uploadOtherFile": "Upload Other File",
+    "markCaseCompleted": "Case Completed",
+    "caseCompletedSaved": "Case Completed (Saved)",
+    "saveToCompleted": "Save to Completed Cases"
   }
 }

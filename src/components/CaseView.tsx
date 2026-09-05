@@ -199,9 +199,60 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const handleToggleCaseStatus = async () => {
     if (!caseData) return;
     const newStatus = caseData.status === 'closed' ? 'open' : 'closed';
+    const isNowCompleted = newStatus === 'closed';
     try {
-      await updateDoc(doc(db, 'cases', caseId), { status: newStatus });
-      setCaseData({ ...caseData, status: newStatus });
+      await updateDoc(doc(db, 'cases', caseId), { 
+        status: newStatus,
+        updatedAt: serverTimestamp()
+      });
+      const updatedCase = { ...caseData, status: newStatus };
+      setCaseData(updatedCase);
+      try {
+        localStorage.setItem(`justiceflow_case_data_${caseId}`, JSON.stringify(updatedCase));
+        if (documents.length > 0) {
+          localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify(documents));
+        } else if (activeDoc) {
+          localStorage.setItem(`justiceflow_case_docs_${caseId}`, JSON.stringify([activeDoc]));
+        }
+        if (activeDoc) {
+          localStorage.setItem(`justiceflow_case_activedoc_${caseId}`, JSON.stringify(activeDoc));
+        }
+        if (chatMessages.length > 0) {
+          localStorage.setItem(`justiceflow_case_chats_${caseId}`, JSON.stringify(chatMessages));
+        }
+        if (analysis) {
+          localStorage.setItem(`justiceflow_case_analysis_${caseId}`, JSON.stringify(analysis));
+        }
+      } catch (e) {}
+
+      if (isNowCompleted) {
+        setCaseSavedNotification(`🏆 Case "${caseData.title}" marked as Completed & saved in Completed Cases!`);
+        const totalDocsCount = documents.length > 0 ? documents.length : (activeDoc ? 1 : 0);
+        const completionMsg: ChatMessage = {
+          id: 'asst_completed_' + Date.now(),
+          documentId: activeDoc?.id || 'case_' + caseId,
+          role: 'assistant',
+          content: `🏆 **Case Marked as Completed & Saved**: The judicial proceedings for **"${caseData.title}"** have been marked as completed.\n\nAll evidence exhibits (${totalDocsCount} file${totalDocsCount === 1 ? '' : 's'}), forensic analysis, and audit trails are secured in **Completed Cases**.\n\nYou can review this case file at any time from the Dashboard under **Completed Cases**.`,
+          userId: auth.currentUser?.uid || 'demo-judge-001',
+          createdAt: new Date()
+        } as ChatMessage;
+
+        setChatMessages(prev => [...prev, completionMsg]);
+        if (activeDoc) {
+          try {
+            await addDoc(collection(db, 'chats'), {
+              documentId: activeDoc.id,
+              role: 'assistant',
+              content: completionMsg.content,
+              userId: auth.currentUser?.uid || 'demo-judge-001',
+              createdAt: serverTimestamp()
+            });
+          } catch (e) {}
+        }
+      } else {
+        setCaseSavedNotification(`🔄 Case "${caseData.title}" status updated to In Progress.`);
+      }
+      setTimeout(() => setCaseSavedNotification(null), 5000);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, `cases/${caseId}`);
     }
@@ -825,22 +876,22 @@ ${activeDoc.textContent || activeDoc.fileName}
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.9 }}
                   onClick={handleToggleCaseStatus}
-                  title={caseData.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('dashboard.markCompleted') || 'Mark as Completed')}
+                  title={caseData.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('case.saveToCompleted') || 'Save to Completed Cases')}
                   className={`px-3 py-1.5 rounded-xl border text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-2 ${
                     caseData.status === 'closed'
                       ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm'
-                      : 'bg-surface border-border-main text-text-muted hover:border-brand-accent/50 hover:text-brand-accent'
+                      : 'bg-surface border-border-main text-text-muted hover:border-emerald-500/50 hover:text-emerald-400'
                   }`}
                 >
                   {caseData.status === 'closed' ? (
                     <>
-                      <CheckSquare className="w-4 h-4 text-emerald-400" />
-                      <span>{t('dashboard.completed') || 'Case Completed'}</span>
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>{t('case.caseCompletedSaved') || 'Case Completed (Saved)'}</span>
                     </>
                   ) : (
                     <>
-                      <Square className="w-4 h-4" />
-                      <span>{t('dashboard.inProgress') || 'In Progress'}</span>
+                      <FolderCheck className="w-4 h-4" />
+                      <span>{t('case.markCaseCompleted') || 'Case Completed'}</span>
                     </>
                   )}
                 </motion.button>
@@ -967,6 +1018,24 @@ ${activeDoc.textContent || activeDoc.fileName}
             >
               <CheckCircle2 className="w-3.5 h-3.5 text-white" />
               <span>{t('case.confirmAndSave') || 'Confirm & Save Case'}</span>
+            </motion.button>
+          )}
+          {caseData && (
+            <motion.button 
+              type="button"
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.94 }}
+              onClick={handleToggleCaseStatus}
+              className={cn(
+                "flex items-center gap-2 px-3.5 py-2 rounded-lg font-bold uppercase tracking-widest text-[10px] cursor-pointer shadow-lg transition-all border",
+                caseData.status === 'closed'
+                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-emerald-500/10"
+                  : "bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white border-emerald-500/40 shadow-emerald-600/25"
+              )}
+              title={caseData.status === 'closed' ? "Case is archived in Completed Cases. Click to reopen." : "Save and mark this case as Completed"}
+            >
+              <FolderCheck className="w-3.5 h-3.5" />
+              <span>{caseData.status === 'closed' ? (t('case.caseCompletedSaved') || 'Case Completed (Saved)') : (t('case.markCaseCompleted') || 'Case Completed')}</span>
             </motion.button>
           )}
           <motion.button 
