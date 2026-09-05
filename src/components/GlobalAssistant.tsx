@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, MessageSquare, X, Send, Loader2, Scale, RotateCcw, HelpCircle, ChevronUp, Bot, ShieldCheck, FolderCheck } from 'lucide-react';
+import { motion, AnimatePresence, useDragControls, useMotionValue } from 'motion/react';
+import { Sparkles, MessageSquare, X, Send, Loader2, Scale, RotateCcw, HelpCircle, ChevronUp, Bot, ShieldCheck, FolderCheck, Move, GripHorizontal, MousePointer } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { askJusticeFlowHelp } from '../services/gemini';
 
@@ -27,6 +27,46 @@ export default function GlobalAssistant() {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
+  const [isHovered, setIsHovered] = useState(false);
+  
+  // Drag controls & coordinates
+  const dragControls = useDragControls();
+  const dragStartPoint = useRef<{ x: number; y: number } | null>(null);
+  const hasMovedRef = useRef(false);
+
+  const initialPos = (() => {
+    try {
+      const saved = localStorage.getItem('justiceflow_guide_pos');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return { x: 0, y: 0 };
+  })();
+
+  const x = useMotionValue(initialPos.x || 0);
+  const y = useMotionValue(initialPos.y || 0);
+
+  const [dragBounds, setDragBounds] = useState({
+    left: -Math.max(window.innerWidth - 440, 200),
+    right: 20,
+    top: -Math.max(window.innerHeight - 200, 200),
+    bottom: 20,
+  });
+
+  useEffect(() => {
+    const updateBounds = () => {
+      setDragBounds({
+        left: -Math.max(window.innerWidth - 440, 200),
+        right: 20,
+        top: -Math.max(window.innerHeight - 200, 200),
+        bottom: 20,
+      });
+    };
+    window.addEventListener('resize', updateBounds);
+    return () => window.removeEventListener('resize', updateBounds);
+  }, []);
+
   const [messages, setMessages] = useState<HelpMessage[]>(() => {
     try {
       const cached = localStorage.getItem('justiceflow_global_help_messages');
@@ -108,6 +148,56 @@ export default function GlobalAssistant() {
     localStorage.removeItem('justiceflow_global_help_messages');
   };
 
+  const handleResetPosition = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    x.set(0);
+    y.set(0);
+    try {
+      localStorage.removeItem('justiceflow_guide_pos');
+    } catch (err) {}
+  };
+
+  const handleDragStart = (e: any, info: any) => {
+    setIsDragging(true);
+    hasMovedRef.current = false;
+    dragStartPoint.current = { x: info.point.x, y: info.point.y };
+  };
+
+  const handleDrag = (e: any, info: any) => {
+    if (dragStartPoint.current) {
+      const dist = Math.hypot(info.point.x - dragStartPoint.current.x, info.point.y - dragStartPoint.current.y);
+      if (dist > 6) {
+        hasMovedRef.current = true;
+      }
+    }
+  };
+
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    try {
+      localStorage.setItem('justiceflow_guide_pos', JSON.stringify({ x: x.get(), y: y.get() }));
+    } catch (err) {}
+    setTimeout(() => {
+      hasMovedRef.current = false;
+    }, 150);
+  };
+
+  const handleButtonClick = (e: React.MouseEvent) => {
+    if (hasMovedRef.current) {
+      e.stopPropagation();
+      return;
+    }
+    setIsOpen(true);
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    setMousePos({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
   const quickQuestions = [
     { label: "🚀 Initializing Evidence", query: "How do I initialize an evidence stream?" },
     { label: "🏆 Case Completion", query: "How does marking a case as completed work and where is it saved?" },
@@ -116,41 +206,87 @@ export default function GlobalAssistant() {
   ];
 
   return (
-    <div className="fixed bottom-6 right-6 z-[100]">
+    <motion.div
+      style={{ x, y }}
+      drag
+      dragControls={dragControls}
+      dragListener={!isOpen}
+      dragMomentum={false}
+      dragElastic={0.06}
+      dragConstraints={dragBounds}
+      onDragStart={handleDragStart}
+      onDrag={handleDrag}
+      onDragEnd={handleDragEnd}
+      className={`fixed bottom-6 right-6 z-[100] ${isDragging ? 'cursor-grabbing select-none' : ''}`}
+    >
       {/* Floating Trigger Button */}
       <AnimatePresence>
         {!isOpen && (
-          <motion.button
+          <motion.div
             initial={{ scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
             exit={{ scale: 0.8, opacity: 0 }}
-            whileHover={{ scale: 1.06, y: -2 }}
-            whileTap={{ scale: 0.94 }}
-            onClick={() => setIsOpen(true)}
-            className="group relative flex items-center gap-3 px-4 py-3 rounded-2xl bg-gradient-to-r from-brand-primary via-indigo-950 to-brand-deep text-white shadow-2xl shadow-brand-primary/40 border border-brand-accent/40 hover:border-brand-accent transition-all cursor-pointer"
-            title="Ask JusticeFlow AI about website features, evidence initialization, checking, or completion"
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={handleButtonClick}
+            onMouseMove={handleMouseMove}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
+            className="group relative flex items-center gap-2.5 pl-2.5 pr-4 py-2.5 rounded-2xl bg-gradient-to-r from-brand-primary via-indigo-950 to-brand-deep text-white shadow-2xl shadow-brand-primary/40 border border-brand-accent/40 hover:border-brand-accent transition-all cursor-grab active:cursor-grabbing select-none"
+            title="Ask JusticeFlow AI Guide • Hold and drag with mouse anywhere"
           >
+            {/* Interactive Mouse-Follower Glow Effect */}
+            {isHovered && (
+              <span
+                className="pointer-events-none absolute -inset-px rounded-2xl opacity-60 transition-opacity duration-200"
+                style={{
+                  background: `radial-gradient(100px circle at ${mousePos.x}px ${mousePos.y}px, rgba(245, 158, 11, 0.35), transparent 80%)`,
+                }}
+              />
+            )}
+
+            {/* Active Dragging Indicator Badge */}
+            {isDragging && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="absolute -top-8 left-1/2 -translate-x-1/2 px-2.5 py-0.5 rounded-full bg-brand-deep/95 border border-brand-accent/70 text-brand-accent text-[9px] font-mono font-bold shadow-xl flex items-center gap-1.5 whitespace-nowrap pointer-events-none backdrop-blur-md"
+              >
+                <Move className="w-2.5 h-2.5 text-amber-300 animate-spin" />
+                <span>Moving with mouse</span>
+              </motion.div>
+            )}
+
             {/* Animated Glow Ping */}
             <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-accent opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-brand-accent"></span>
             </span>
 
-            <div className="w-8 h-8 rounded-xl bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-accent">
+            {/* Dedicated Movable Cursor Handle */}
+            <div
+              className="p-1 rounded-lg bg-surface/40 hover:bg-brand-accent/20 text-brand-accent/70 hover:text-brand-accent cursor-grab active:cursor-grabbing transition-colors flex items-center justify-center"
+              title="Movable Cursor: Drag anywhere with mouse"
+            >
+              <Move className="w-3.5 h-3.5 text-amber-300" />
+            </div>
+
+            <div className="w-8 h-8 rounded-xl bg-brand-accent/20 border border-brand-accent/40 flex items-center justify-center text-brand-accent shrink-0">
               <Sparkles className="w-4 h-4 text-amber-300" />
             </div>
+
             <div className="text-left">
               <div className="flex items-center gap-1.5">
                 <span className="text-[11px] font-black uppercase tracking-wider text-text-main group-hover:text-brand-accent transition-colors">
                   Ask AI Guide
                 </span>
-                <span className="text-[9px] px-1.5 py-0.5 rounded-md bg-brand-accent/20 text-brand-accent font-bold uppercase">
-                  Anywhere
+                <span className="text-[8px] px-1 py-0.5 rounded-md bg-brand-accent/20 text-brand-accent font-bold uppercase tracking-wider">
+                  Movable
                 </span>
               </div>
-              <p className="text-[9px] text-text-muted">Doubts? Inquire here</p>
+              <p className="text-[9px] text-text-muted">Drag to move • Click to ask</p>
             </div>
-          </motion.button>
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -162,32 +298,43 @@ export default function GlobalAssistant() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.94 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
-            className="w-[92vw] sm:w-[420px] h-[580px] max-h-[82vh] glass-card rounded-3xl border border-brand-accent/30 shadow-2xl flex flex-col overflow-hidden bg-brand-deep/95 backdrop-blur-xl"
+            className="w-[92vw] sm:w-[430px] h-[580px] max-h-[82vh] glass-card rounded-3xl border border-brand-accent/30 shadow-2xl flex flex-col overflow-hidden bg-brand-deep/95 backdrop-blur-xl"
           >
-            {/* Header */}
-            <div className="p-4 border-b border-border-main flex items-center justify-between bg-surface/60">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-brand-accent/15 border border-brand-accent/40 flex items-center justify-center text-brand-accent shadow-inner">
+            {/* Header with Movable Cursor Grip Bar */}
+            <div className="p-3.5 border-b border-border-main flex items-center justify-between bg-surface/60 gap-2">
+              <div className="flex items-center gap-2.5 shrink-0">
+                <div className="w-8 h-8 rounded-xl bg-brand-accent/15 border border-brand-accent/40 flex items-center justify-center text-brand-accent shadow-inner">
                   <Sparkles className="w-4 h-4 text-amber-300" />
                 </div>
                 <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-xs font-black uppercase tracking-wider text-text-main">JusticeFlow AI Guide</h3>
-                    <span className="px-1.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 text-[8px] font-bold uppercase tracking-wider">
+                  <div className="flex items-center gap-1.5">
+                    <h3 className="text-xs font-black uppercase tracking-wider text-text-main">JusticeFlow AI</h3>
+                    <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/20 text-emerald-400 text-[8px] font-bold uppercase tracking-wider">
                       Online
                     </span>
                   </div>
-                  <p className="text-[10px] text-text-muted">Instant help for initialization, completion & checking</p>
+                  <p className="text-[9px] text-text-muted">Guide for initialization, completion & checks</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-1">
+              {/* Movable Cursor Handle in Header */}
+              <div
+                onPointerDown={(e) => dragControls.start(e)}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-surface/80 hover:bg-brand-accent/15 border border-border-main hover:border-brand-accent/50 text-[9px] font-semibold text-text-muted hover:text-brand-accent cursor-grab active:cursor-grabbing transition-all select-none shadow-sm"
+                title="Click and hold to move the AI Guide anywhere with your mouse"
+              >
+                <Move className="w-3 h-3 text-amber-300 animate-pulse" />
+                <span className="hidden sm:inline">Move</span>
+                <GripHorizontal className="w-3 h-3 opacity-60" />
+              </div>
+
+              <div className="flex items-center gap-1 shrink-0">
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={handleClearHistory}
-                  title="Clear chat history"
-                  className="p-1.5 rounded-lg text-text-muted hover:text-text-main hover:bg-surface/80 transition-colors"
+                  onClick={handleResetPosition}
+                  title="Reset window position to corner"
+                  className="p-1.5 rounded-lg text-text-muted hover:text-amber-300 hover:bg-surface/80 transition-colors"
                 >
                   <RotateCcw className="w-3.5 h-3.5" />
                 </motion.button>
@@ -288,6 +435,6 @@ export default function GlobalAssistant() {
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }
