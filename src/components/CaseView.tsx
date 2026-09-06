@@ -527,49 +527,18 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       console.warn('Analysis listener notice:', error);
     });
 
-    const qChat = query(collection(db, 'chats'), where('documentId', '==', activeDoc.id));
-    const unsubChat = onSnapshot(qChat, (snapshot) => {
-      if (!snapshot.empty) {
-        const msgs = snapshot.docs.map(d => {
-          const data = d.data();
-          // Use localId (stored on Firestore doc) as the canonical dedup key so it merges with locally-added message
-          return { id: data.localId || d.id, ...data } as ChatMessage;
-        });
-        setChatMessages(prev => {
-          const map = new Map<string, ChatMessage>();
-          // First put all existing local messages in the map keyed by id
-          prev.forEach(m => map.set(m.id, m));
-          // Then merge Firestore messages — using the same key (localId) they will OVERWRITE the local placeholder
-          // with the Firestore version (which has proper serverTimestamp), not create a duplicate
-          msgs.forEach(m => {
-            // Only add if not already present as a local message with same id
-            if (!map.has(m.id)) {
-              map.set(m.id, m);
-            } else {
-              // Overwrite with Firestore version so createdAt gets the real server timestamp
-              const existing = map.get(m.id)!;
-              map.set(m.id, { ...existing, ...m });
-            }
-          });
-          return Array.from(map.values()).sort((a, b) => {
-            const getTime = (ts: any): number => {
-              if (!ts) return 0;
-              if (ts.seconds) return ts.seconds;
-              if (ts.toDate) return ts.toDate().getTime() / 1000;
-              if (ts instanceof Date) return ts.getTime() / 1000;
-              return 0;
-            };
-            return getTime(a.createdAt) - getTime(b.createdAt);
-          });
-        });
-      }
-    }, (error) => {
-      console.warn('Chats listener notice:', error);
-    });
+    const qChat = query(collection(db, 'chats'), where('documentId', '==', activeDoc.id), orderBy('createdAt', 'asc'));
+    // NOTE: We intentionally do NOT use onSnapshot for chats.
+    // Chat messages are managed entirely in local state + localStorage.
+    // Firestore writes (addDoc in handleSendMessage) serve as a backup only.
+    // Using onSnapshot caused duplicates and message disappearance because Firestore
+    // assigns different IDs than local messages, breaking the dedup merge.
+    // If you need to load historical chats from Firestore on first load (e.g. for multi-device),
+    // use a one-time getDoc/getDocs call here instead.
+    void qChat; // keep the query reference for potential future use
 
     return () => {
       unsubAnalysis();
-      unsubChat();
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [activeDoc]);
