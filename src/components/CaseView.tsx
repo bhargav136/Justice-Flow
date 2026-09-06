@@ -2,10 +2,10 @@ import * as React from 'react';
 const { useState, useEffect, useRef, useMemo } = React;
 import { useTranslation } from 'react-i18next';
 import { db, auth, storage, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case, Document, Analysis, ChatMessage } from '../types';
-import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare, Save, FolderCheck } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare, Save, FolderCheck, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeLegalDocument, chatWithCase, getGeminiApiKey, setGeminiApiKey, fallbackJudicialAnalysis } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
@@ -157,6 +157,8 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const [stagedFile, setStagedFile] = useState<File | null>(null);
   const [stagedTitle, setStagedTitle] = useState('');
   const [isSavingToCase, setIsSavingToCase] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeletingCase, setIsDeletingCase] = useState(false);
   const [caseSavedNotification, setCaseSavedNotification] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -342,6 +344,44 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     } catch (error) {
       console.warn('Firestore status update notice (local state maintained):', error);
     }
+  };
+
+  const handleConfirmDeleteCase = async () => {
+    setIsDeletingCase(true);
+    // 1. Immediately purge from localStorage
+    try {
+      const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+      if (dashCasesRaw) {
+        const dashCases = JSON.parse(dashCasesRaw);
+        const updatedDash = dashCases.filter((c: any) => c.id !== caseId);
+        localStorage.setItem('justiceflow_dashboard_cases', JSON.stringify(updatedDash));
+      }
+      localStorage.removeItem(`justiceflow_case_data_${caseId}`);
+      localStorage.removeItem(`justiceflow_case_docs_${caseId}`);
+      localStorage.removeItem(`justiceflow_case_chats_${caseId}`);
+      localStorage.removeItem(`justiceflow_case_analysis_${caseId}`);
+      localStorage.removeItem(`justiceflow_case_activedoc_${caseId}`);
+    } catch (err) {}
+
+    // 2. Delete from Firestore
+    try {
+      await deleteDoc(doc(db, 'cases', caseId));
+      try {
+        const docsQuery = query(collection(db, 'documents'), where('caseId', '==', caseId));
+        const docsSnapshot = await getDocs(docsQuery);
+        docsSnapshot.forEach(async (d) => {
+          try {
+            await deleteDoc(d.ref);
+          } catch (e) {}
+        });
+      } catch (e) {}
+    } catch (error) {
+      console.warn('Firestore case deletion notice (local record purged):', error);
+    }
+
+    setIsDeletingCase(false);
+    setShowDeleteModal(false);
+    onBack();
   };
 
   useEffect(() => {
@@ -980,6 +1020,19 @@ ${activeDoc.textContent || activeDoc.fileName}
                       <span>{t('case.markCaseCompleted') || 'Case Completed'}</span>
                     </>
                   )}
+                </motion.button>
+              )}
+              {caseData && (
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setShowDeleteModal(true)}
+                  title="Permanently Delete Case"
+                  className="px-3 py-1.5 rounded-xl border border-border-main text-text-muted hover:text-red-400 hover:border-red-400/40 hover:bg-red-400/10 text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                  <span className="hidden sm:inline">Delete Case</span>
                 </motion.button>
               )}
             </div>
@@ -1960,6 +2013,71 @@ ${activeDoc.textContent || activeDoc.fileName}
                 >
                   Save Key
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Permanent Deletion Confirmation Modal */}
+      <AnimatePresence>
+        {showDeleteModal && (
+          <div className="fixed inset-0 bg-brand-deep/80 backdrop-blur-md flex items-center justify-center z-[120] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="glass-card rounded-3xl p-8 max-w-md w-full border border-red-500/30 shadow-2xl shadow-red-500/10 relative"
+            >
+              <div className="flex items-center gap-4 mb-4">
+                <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0 shadow-inner">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-text-main tracking-tight">
+                    Confirm Permanent Deletion
+                  </h3>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">
+                    This action cannot be undone
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs text-text-muted leading-relaxed mb-6">
+                Are you sure you want to permanently delete <span className="font-bold text-text-main">"{caseData?.title}"</span>? This judicial record, all associated evidence exhibits, forensic audit data, and transcripts will be permanently expunged.
+              </p>
+
+              <div className="flex items-center justify-end gap-3">
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={isDeletingCase}
+                  onClick={() => setShowDeleteModal(false)}
+                  className="px-5 py-2.5 rounded-xl border border-border-main text-text-muted hover:text-text-main hover:bg-surface/50 text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+                >
+                  {t('common.cancel') || 'Cancel'}
+                </motion.button>
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.95 }}
+                  disabled={isDeletingCase}
+                  onClick={handleConfirmDeleteCase}
+                  className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isDeletingCase ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>Deleting Case...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 className="w-4 h-4" />
+                      <span>Confirm Delete</span>
+                    </>
+                  )}
+                </motion.button>
               </div>
             </motion.div>
           </div>

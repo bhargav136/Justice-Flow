@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { db, auth, storage, handleFirestoreError, OperationType } from '../firebase';
-import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, addDoc, serverTimestamp, deleteDoc, doc, updateDoc, getDocs } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case } from '../types';
-import { Plus, Folder, Clock, ChevronRight, Trash2, Search, Edit2, Upload, FileText, X, Loader2, ShieldCheck, AlertCircle, Gavel, CheckCircle2, CheckSquare, Square } from 'lucide-react';
+import { Plus, Folder, Clock, ChevronRight, Trash2, Search, Edit2, Upload, FileText, X, Loader2, ShieldCheck, AlertCircle, AlertTriangle, Gavel, CheckCircle2, CheckSquare, Square } from 'lucide-react';
 import { motion } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -35,6 +35,8 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
 
   const [showNewCaseModal, setShowNewCaseModal] = useState(false);
   const [editingCase, setEditingCase] = useState<Case | null>(null);
+  const [caseToDelete, setCaseToDelete] = useState<Case | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [newCaseTitle, setNewCaseTitle] = useState('');
   const [newCaseDescription, setNewCaseDescription] = useState('');
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
@@ -334,14 +336,55 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
     setNewCaseDescription(c.description || '');
   };
 
-  const handleDeleteCase = async (e: React.MouseEvent, id: string) => {
+  const handleOpenDeleteConfirm = (e: React.MouseEvent, c: Case) => {
     e.stopPropagation();
-    // if (!confirm('Are you sure you want to delete this case? All associated documents will remain but the case entry will be removed.')) return;
+    setCaseToDelete(c);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!caseToDelete) return;
+    const targetId = caseToDelete.id;
+    const targetTitle = caseToDelete.title;
+    setIsDeleting(true);
+
+    // 1. Immediately remove from local cases state for 0ms instant UI removal
+    setCases(prev => prev.filter(c => c.id !== targetId));
+
+    // 2. Immediately purge from localStorage
     try {
-      await deleteDoc(doc(db, 'cases', id));
+      const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+      if (dashCasesRaw) {
+        const dashCases = JSON.parse(dashCasesRaw);
+        const updatedDash = dashCases.filter((c: any) => c.id !== targetId);
+        localStorage.setItem('justiceflow_dashboard_cases', JSON.stringify(updatedDash));
+      }
+      localStorage.removeItem(`justiceflow_case_data_${targetId}`);
+      localStorage.removeItem(`justiceflow_case_docs_${targetId}`);
+      localStorage.removeItem(`justiceflow_case_chats_${targetId}`);
+      localStorage.removeItem(`justiceflow_case_analysis_${targetId}`);
+      localStorage.removeItem(`justiceflow_case_activedoc_${targetId}`);
+    } catch (err) {}
+
+    // 3. Delete from Firestore permanently (both case and associated documents)
+    try {
+      await deleteDoc(doc(db, 'cases', targetId));
+      try {
+        const docsQuery = query(collection(db, 'documents'), where('caseId', '==', targetId));
+        const docsSnapshot = await getDocs(docsQuery);
+        docsSnapshot.forEach(async (d) => {
+          try {
+            await deleteDoc(d.ref);
+          } catch (e) {}
+        });
+      } catch (e) {}
     } catch (error) {
-      handleFirestoreError(error, OperationType.DELETE, `cases/${id}`);
+      console.warn('Firestore case deletion notice (local record purged):', error);
     }
+
+    setIsDeleting(false);
+    setCaseToDelete(null);
+    setCompletedNotice(`🗑️ Case "${targetTitle}" has been permanently deleted.`);
+    setTimeout(() => setCompletedNotice(null), 5000);
   };
 
   const handleToggleCaseStatus = async (e: React.MouseEvent, caseItem: Case) => {
@@ -613,12 +656,14 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                   <Edit2 className="w-4 h-4" />
                 </motion.button>
                 <motion.button
+                  type="button"
                   whileHover={{ scale: 1.15 }}
                   whileTap={{ scale: 0.85 }}
-                  onClick={(e) => handleDeleteCase(e, c.id)}
-                  className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                  onClick={(e) => handleOpenDeleteConfirm(e, c)}
+                  title="Permanently Delete Case"
+                  className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/15 rounded-xl transition-all opacity-80 group-hover:opacity-100"
                 >
-                  <Trash2 className="w-4 h-4" />
+                  <Trash2 className="w-4 h-4 text-red-400" />
                 </motion.button>
               </div>
             </div>
@@ -856,6 +901,69 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                 </motion.button>
               </div>
             </form>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Permanent Deletion Confirmation Modal */}
+      {caseToDelete && (
+        <div className="fixed inset-0 bg-brand-deep/80 backdrop-blur-md flex items-center justify-center z-[120] p-4">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="glass-card rounded-3xl p-8 max-w-md w-full border border-red-500/30 shadow-2xl shadow-red-500/10 relative"
+          >
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-12 h-12 rounded-2xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0 shadow-inner">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-text-main tracking-tight">
+                  Confirm Permanent Deletion
+                </h3>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">
+                  This action cannot be undone
+                </span>
+              </div>
+            </div>
+
+            <p className="text-xs text-text-muted leading-relaxed mb-6">
+              Are you sure you want to permanently delete <span className="font-bold text-text-main">"{caseToDelete.title}"</span>? This judicial record and all attached evidence exhibits, forensic audit data, and transcripts will be permanently expunged.
+            </p>
+
+            <div className="flex items-center justify-end gap-3">
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                disabled={isDeleting}
+                onClick={() => setCaseToDelete(null)}
+                className="px-5 py-2.5 rounded-xl border border-border-main text-text-muted hover:text-text-main hover:bg-surface/50 text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-50"
+              >
+                {t('common.cancel') || 'Cancel'}
+              </motion.button>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.95 }}
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-5 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider shadow-lg shadow-red-500/20 transition-all flex items-center gap-2 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Deleting Case...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </motion.button>
+            </div>
           </motion.div>
         </div>
       )}
