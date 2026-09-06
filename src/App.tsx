@@ -53,6 +53,17 @@ function AppContent() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [showSignOutConfirm, setShowSignOutConfirm] = useState(false);
 
+  // Auto-navigate to shared docket if link contains ?docket= or ?caseId=
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const targetDocket = params.get('docket') || params.get('caseId') || params.get('sharedCase');
+      if (targetDocket) {
+        setActiveCaseId(targetDocket);
+      }
+    } catch (e) {}
+  }, []);
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {

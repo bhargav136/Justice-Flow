@@ -2656,9 +2656,13 @@ ${activeDoc.textContent || activeDoc.fileName}
                               onChange={(e) => setClashDocA(e.target.value)}
                               className="w-full bg-surface border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none focus:border-brand-accent font-medium"
                             >
-                              {effectiveDocuments.map(d => (
-                                <option key={d.id || d.fileName} value={d.id || d.fileName}>{d.fileName}</option>
-                              ))}
+                              {effectiveDocuments.length > 0 ? (
+                                effectiveDocuments.map(d => (
+                                  <option key={d.id || d.fileName} value={d.id || d.fileName}>{d.fileName}</option>
+                                ))
+                              ) : (
+                                <option value="">No exhibits uploaded yet</option>
+                              )}
                             </select>
                           </div>
 
@@ -2669,9 +2673,13 @@ ${activeDoc.textContent || activeDoc.fileName}
                               onChange={(e) => setClashDocB(e.target.value)}
                               className="w-full bg-surface border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none focus:border-amber-400 font-medium"
                             >
-                              {effectiveDocuments.map(d => (
-                                <option key={d.id || d.fileName} value={d.id || d.fileName}>{d.fileName}</option>
-                              ))}
+                              {effectiveDocuments.length > 0 ? (
+                                effectiveDocuments.map(d => (
+                                  <option key={d.id || d.fileName} value={d.id || d.fileName}>{d.fileName}</option>
+                                ))
+                              ) : (
+                                <option value="">Upload a second exhibit to clash</option>
+                              )}
                             </select>
                           </div>
                         </div>
