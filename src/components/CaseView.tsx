@@ -81,13 +81,25 @@ const PROMPT_SUGGESTIONS = [
 
 export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const { t } = useTranslation();
-  const [caseData, setCaseData] = useState<Case | null>(() => {
+  const [caseData, setCaseData] = useState<Case>(() => {
     try {
       const cached = localStorage.getItem(`justiceflow_case_data_${caseId}`);
-      return cached ? JSON.parse(cached) : null;
-    } catch (e) {
-      return null;
-    }
+      if (cached) return JSON.parse(cached);
+      const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+      if (dashCasesRaw) {
+        const dashCases = JSON.parse(dashCasesRaw);
+        const found = dashCases.find((c: any) => c.id === caseId);
+        if (found) return found;
+      }
+    } catch (e) {}
+    return {
+      id: caseId,
+      title: 'Judicial Case Docket',
+      description: 'Active case record and evidence repository.',
+      status: 'open' as const,
+      userId: 'demo-judge-001',
+      createdAt: new Date()
+    };
   });
   const [documents, setDocuments] = useState<Document[]>(() => {
     try {
@@ -255,10 +267,31 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
         const docRef = doc(db, 'cases', caseId);
         const docSnap = await getDoc(docRef);
         if (docSnap.exists()) {
-          setCaseData({ id: docSnap.id, ...docSnap.data() } as Case);
+          const firestoreCase = { id: docSnap.id, ...docSnap.data() } as Case;
+          setCaseData(firestoreCase);
+          try { localStorage.setItem(`justiceflow_case_data_${caseId}`, JSON.stringify(firestoreCase)); } catch (e) {}
+        } else {
+          // Firestore doc missing — try dashboard cache, then keep existing default
+          try {
+            const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+            if (dashCasesRaw) {
+              const dashCases = JSON.parse(dashCasesRaw);
+              const found = dashCases.find((c: any) => c.id === caseId);
+              if (found) setCaseData(found);
+            }
+          } catch (e) {}
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, `cases/${caseId}`);
+        // On error, try dashboard cache
+        try {
+          const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+          if (dashCasesRaw) {
+            const dashCases = JSON.parse(dashCasesRaw);
+            const found = dashCases.find((c: any) => c.id === caseId);
+            if (found) setCaseData(found);
+          }
+        } catch (e) {}
       }
     };
     fetchCase();
@@ -1389,46 +1422,42 @@ ${activeDoc.textContent || activeDoc.fileName}
               <div className="w-10 h-10 bg-brand-accent/10 rounded-xl flex items-center justify-center">
                 <Scale className="w-5 h-5 text-brand-accent" />
               </div>
-              <h2 className="text-2xl font-bold text-text-main tracking-tight">{caseData?.title || 'Loading Case...'}</h2>
-              {caseData && (
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={handleToggleCaseStatus}
-                  title={caseData.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('case.saveToCompleted') || 'Save to Completed Cases')}
-                  className={`px-3 py-1.5 rounded-xl border text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-2 ${
-                    caseData.status === 'closed'
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm'
-                      : 'bg-surface border-border-main text-text-muted hover:border-emerald-500/50 hover:text-emerald-400'
-                  }`}
-                >
-                  {caseData.status === 'closed' ? (
-                    <>
-                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                      <span>{t('case.caseCompletedSaved') || 'Case Completed (Saved)'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <FolderCheck className="w-4 h-4" />
-                      <span>{t('case.markCaseCompleted') || 'Case Completed'}</span>
-                    </>
-                  )}
-                </motion.button>
-              )}
-              {caseData && (
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => setShowDeleteModal(true)}
-                  title="Permanently Delete Case"
-                  className="px-3 py-1.5 rounded-xl border border-border-main text-text-muted hover:text-red-400 hover:border-red-400/40 hover:bg-red-400/10 text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                  <span className="hidden sm:inline">Delete Case</span>
-                </motion.button>
-              )}
+              <h2 className="text-2xl font-bold text-text-main tracking-tight">{caseData.title || `Case #${caseId.slice(-6).toUpperCase()}`}</h2>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={handleToggleCaseStatus}
+                title={caseData.status === 'closed' ? (t('dashboard.markOpen') || 'Mark as In Progress') : (t('case.saveToCompleted') || 'Save to Completed Cases')}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-2 ${
+                  caseData.status === 'closed'
+                    ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm'
+                    : 'bg-surface border-border-main text-text-muted hover:border-emerald-500/50 hover:text-emerald-400'
+                }`}
+              >
+                {caseData.status === 'closed' ? (
+                  <>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    <span>{t('case.caseCompletedSaved') || 'Case Completed (Saved)'}</span>
+                  </>
+                ) : (
+                  <>
+                    <FolderCheck className="w-4 h-4" />
+                    <span>{t('case.markCaseCompleted') || 'Case Completed'}</span>
+                  </>
+                )}
+              </motion.button>
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowDeleteModal(true)}
+                title="Permanently Delete Case"
+                className="px-3 py-1.5 rounded-xl border border-border-main text-text-muted hover:text-red-400 hover:border-red-400/40 hover:bg-red-400/10 text-xs font-bold tracking-wider uppercase transition-all flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                <span className="hidden sm:inline">Delete Case</span>
+              </motion.button>
             </div>
             {caseData?.description ? (
               <p className="text-sm text-text-muted leading-relaxed max-w-2xl">{caseData.description}</p>
@@ -1579,24 +1608,22 @@ ${activeDoc.textContent || activeDoc.fileName}
           )}
 
           {/* 3. Case Completed / Save to Completed */}
-          {caseData && (
-            <motion.button 
-              type="button"
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleToggleCaseStatus}
-              className={cn(
-                "flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold uppercase tracking-wider text-[10px] cursor-pointer transition-all border",
-                caseData.status === 'closed'
-                  ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm"
-                  : "bg-surface hover:bg-emerald-500/10 border-border-main hover:border-emerald-500/40 text-text-muted hover:text-emerald-400 shadow-sm"
-              )}
-              title={caseData.status === 'closed' ? "Case is archived in Completed Cases. Click to reopen." : "Save and mark this case as Completed"}
-            >
-              <FolderCheck className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="whitespace-nowrap">{caseData.status === 'closed' ? (t('case.caseCompletedSaved') || 'Case Completed (Saved)') : (t('case.markCaseCompleted') || 'Case Completed')}</span>
-            </motion.button>
-          )}
+          <motion.button 
+            type="button"
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={handleToggleCaseStatus}
+            className={cn(
+              "flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold uppercase tracking-wider text-[10px] cursor-pointer transition-all border",
+              caseData.status === 'closed'
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-sm"
+                : "bg-surface hover:bg-emerald-500/10 border-border-main hover:border-emerald-500/40 text-text-muted hover:text-emerald-400 shadow-sm"
+            )}
+            title={caseData.status === 'closed' ? "Case is archived in Completed Cases. Click to reopen." : "Save and mark this case as Completed"}
+          >
+            <FolderCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="whitespace-nowrap">{caseData.status === 'closed' ? (t('case.caseCompletedSaved') || 'Case Completed (Saved)') : (t('case.markCaseCompleted') || 'Case Completed')}</span>
+          </motion.button>
 
           {/* 4. Export Report */}
           <motion.button 
