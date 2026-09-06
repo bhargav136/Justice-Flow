@@ -5,9 +5,9 @@ import { db, auth, storage, handleFirestoreError, OperationType } from '../fireb
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case, Document, Analysis, ChatMessage, Contradiction, CrossExamItem, ChainOfCustodyData } from '../types';
-import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare, Save, FolderCheck, Trash2, BookOpen, ShieldAlert, Award, Copy, Check, Swords, FileCheck, RefreshCw, Zap } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare, Save, FolderCheck, Trash2, BookOpen, ShieldAlert, Award, Copy, Check, Swords, FileCheck, RefreshCw, Zap, FileEdit, CalendarClock, Printer } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { analyzeLegalDocument, chatWithCase, getGeminiApiKey, setGeminiApiKey, fallbackJudicialAnalysis } from '../services/gemini';
+import { analyzeLegalDocument, chatWithCase, getGeminiApiKey, setGeminiApiKey, fallbackJudicialAnalysis, generateLegalDraft } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -149,7 +149,11 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     );
   }, [chatInput]);
 
-  const [activeTab, setActiveTab] = useState<'summary' | 'legal_points' | 'timeline' | 'authenticity' | 'contradictions' | 'cross_examination' | 'custody'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'legal_points' | 'timeline' | 'authenticity' | 'contradictions' | 'cross_examination' | 'custody' | 'drafts'>('summary');
+  const [selectedDraftType, setSelectedDraftType] = useState<'bail' | 'notice' | 'affidavit' | 'complaint' | 'objection'>('bail');
+  const [draftText, setDraftText] = useState<string>('');
+  const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
+  const [copiedDraft, setCopiedDraft] = useState(false);
   const [sha256Digest, setSha256Digest] = useState<string>('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
   const [copiedHash, setCopiedHash] = useState(false);
   const [cxArgumentInput, setCxArgumentInput] = useState<{ [id: string]: string }>({});
@@ -1300,6 +1304,67 @@ ${activeDoc.textContent || activeDoc.fileName}
     }, 600);
   };
 
+  const handleGenerateDraft = async (type: 'bail' | 'notice' | 'affidavit' | 'complaint' | 'objection') => {
+    if (!caseData) return;
+    setIsGeneratingDraft(true);
+    try {
+      const docContent = activeDoc?.textContent || (analysis?.summary ?? '') || caseData.description || 'Record of Evidence';
+      const text = await generateLegalDraft(type, caseData.title, caseData.description, docContent);
+      setDraftText(text);
+    } catch (e) {
+      console.error('Error generating draft:', e);
+    } finally {
+      setIsGeneratingDraft(false);
+    }
+  };
+
+  const downloadDraftPdf = () => {
+    if (!draftText || !caseData) return;
+    const doc = new jsPDF();
+    const cleanTitle = caseData.title.replace(/\s+/g, '_');
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, 210, 36, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('JUSTICEFLOW LEGAL DRAFTING SUITE', 20, 20);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`OFFICIAL COURT PLEADING | ${selectedDraftType.toUpperCase()} | CASE: ${caseData.title}`, 20, 29);
+
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    
+    const cleanPleading = draftText
+      .replace(/###\s*/g, '')
+      .replace(/##\s*/g, '')
+      .replace(/\*\*/g, '')
+      .replace(/\*/g, '');
+
+    const lines = doc.splitTextToSize(cleanPleading, 170);
+    let cursorY = 50;
+    const pageHeight = doc.internal.pageSize.height;
+
+    for (let i = 0; i < lines.length; i++) {
+      if (cursorY > pageHeight - 25) {
+        doc.addPage();
+        cursorY = 25;
+      }
+      doc.text(lines[i], 20, cursorY);
+      cursorY += 6;
+    }
+
+    doc.save(`Legal_Draft_${selectedDraftType}_${cleanTitle}.pdf`);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'drafts' && !draftText && caseData) {
+      handleGenerateDraft(selectedDraftType);
+    }
+  }, [activeTab, selectedDraftType, caseData]);
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1619,7 +1684,8 @@ ${activeDoc.textContent || activeDoc.fileName}
                     { id: 'authenticity', label: t('case.forensicAudit') || 'Forensics', icon: ShieldCheck },
                     { id: 'contradictions', label: 'Discrepancies', icon: ShieldAlert },
                     { id: 'cross_examination', label: 'Cross-Exam AI', icon: Swords },
-                    { id: 'custody', label: 'Sec 65B Custody', icon: Award }
+                    { id: 'custody', label: 'Sec 65B Custody', icon: Award },
+                    { id: 'drafts', label: 'AI Drafter', icon: FileEdit }
                   ].map(({ id, label, icon: Icon }) => (
                     <motion.button
                       key={id}
@@ -2190,6 +2256,169 @@ ${activeDoc.textContent || activeDoc.fileName}
                               <BookOpen className="w-3.5 h-3.5 text-brand-accent" />
                               Include in Full Trial Binder
                             </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'drafts' && (
+                      <div className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div>
+                            <h4 className="text-2xl font-bold text-text-main tracking-tight flex items-center gap-3">
+                              <FileEdit className="w-6 h-6 text-brand-accent" />
+                              AI Legal Drafting Suite
+                            </h4>
+                            <p className="text-xs text-text-muted mt-1">
+                              Automated judicial pleading generator pre-populated with case evidence, statutory sections, and formal prayer clauses.
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 self-start sm:self-auto">
+                            <motion.button
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => handleGenerateDraft(selectedDraftType)}
+                              disabled={isGeneratingDraft}
+                              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-brand-accent/15 hover:bg-brand-accent/25 border border-brand-accent/30 text-brand-accent text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-40"
+                              title="Regenerate Draft with AI"
+                            >
+                              <RefreshCw className={cn("w-3.5 h-3.5", isGeneratingDraft && "animate-spin")} />
+                              {isGeneratingDraft ? 'Drafting...' : 'Regenerate'}
+                            </motion.button>
+                            <motion.button
+                              whileHover={{ scale: 1.03 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={downloadDraftPdf}
+                              disabled={!draftText}
+                              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface hover:bg-surface/80 border border-border-main text-text-main text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-30"
+                              title="Export Draft to PDF"
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                              Export PDF
+                            </motion.button>
+                          </div>
+                        </div>
+
+                        {/* Statutory Limitation Tracker */}
+                        <div className="glass-card p-4 rounded-3xl border border-border-main space-y-3 bg-surface/40">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-brand-accent uppercase tracking-widest flex items-center gap-1.5">
+                              <CalendarClock className="w-3.5 h-3.5" />
+                              Statutory Limitation & Filing Deadlines
+                            </span>
+                            <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+                              Active Timeline
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div className="bg-surface/80 p-3 rounded-2xl border border-border-main text-xs space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Chargesheet Filing</span>
+                                <span className="text-[9px] font-bold text-emerald-400">90 Days Window</span>
+                              </div>
+                              <p className="text-text-main font-semibold">Under Sec 187 BNSS / 167 CrPC</p>
+                              <div className="w-full bg-border-main h-1.5 rounded-full overflow-hidden mt-1">
+                                <div className="bg-emerald-400 h-full w-[35%]" />
+                              </div>
+                            </div>
+                            <div className="bg-surface/80 p-3 rounded-2xl border border-border-main text-xs space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Statutory Appeal</span>
+                                <span className="text-[9px] font-bold text-amber-400">30 Days Window</span>
+                              </div>
+                              <p className="text-text-main font-semibold">From Date of Impugned Order</p>
+                              <div className="w-full bg-border-main h-1.5 rounded-full overflow-hidden mt-1">
+                                <div className="bg-amber-400 h-full w-[60%]" />
+                              </div>
+                            </div>
+                            <div className="bg-surface/80 p-3 rounded-2xl border border-border-main text-xs space-y-1">
+                              <div className="flex justify-between items-center">
+                                <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider">Legal Notice Reply</span>
+                                <span className="text-[9px] font-bold text-blue-400">15 Days Cure Period</span>
+                              </div>
+                              <p className="text-text-main font-semibold">Statutory Rectification Window</p>
+                              <div className="w-full bg-border-main h-1.5 rounded-full overflow-hidden mt-1">
+                                <div className="bg-blue-400 h-full w-[25%]" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Document Type Selector Pills */}
+                        <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                          {[
+                            { type: 'bail' as const, label: '🛡️ Bail Application (Sec 439 CrPC / 483 BNSS)' },
+                            { type: 'notice' as const, label: '⚖️ Legal Demand / Cease & Desist Notice' },
+                            { type: 'affidavit' as const, label: '📜 Sworn Evidence Affidavit (Order 18 Rule 4)' },
+                            { type: 'complaint' as const, label: '🏛️ Criminal Complaint (Sec 156(3) CrPC)' },
+                            { type: 'objection' as const, label: '🚫 Electronic Evidence Objection (Sec 65B)' }
+                          ].map(item => (
+                            <button
+                              key={item.type}
+                              type="button"
+                              onClick={() => {
+                                setSelectedDraftType(item.type);
+                                handleGenerateDraft(item.type);
+                              }}
+                              className={cn(
+                                "px-3.5 py-2 rounded-2xl text-xs font-bold transition-all whitespace-nowrap border shrink-0",
+                                selectedDraftType === item.type
+                                  ? "bg-brand-accent/20 border-brand-accent text-brand-accent shadow-sm"
+                                  : "bg-surface hover:bg-surface/80 border-border-main text-text-muted hover:text-text-main"
+                              )}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Editor & Live Pleading */}
+                        <div className="glass-card p-6 rounded-3xl border border-border-main space-y-4">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-text-muted uppercase tracking-widest flex items-center gap-2">
+                              <Printer className="w-3.5 h-3.5 text-brand-accent" />
+                              Editable Court Pleading Preview
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (draftText) {
+                                    navigator.clipboard.writeText(draftText);
+                                    setCopiedDraft(true);
+                                    setTimeout(() => setCopiedDraft(false), 2000);
+                                  }
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-surface hover:bg-surface/80 border border-border-main text-[10px] font-bold uppercase tracking-wider text-text-muted hover:text-brand-accent transition-all"
+                              >
+                                {copiedDraft ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                                {copiedDraft ? 'Copied!' : 'Copy Draft'}
+                              </button>
+                            </div>
+                          </div>
+
+                          {isGeneratingDraft ? (
+                            <div className="py-20 flex flex-col items-center justify-center text-brand-accent space-y-3">
+                              <Loader2 className="w-8 h-8 animate-spin" />
+                              <span className="text-xs font-bold uppercase tracking-widest text-text-muted">
+                                Synthesizing Court Pleading with Judicial Precedents...
+                              </span>
+                            </div>
+                          ) : (
+                            <textarea
+                              value={draftText}
+                              onChange={(e) => setDraftText(e.target.value)}
+                              rows={16}
+                              placeholder="Legal pleading draft will appear here..."
+                              className="w-full bg-surface/50 border border-border-main rounded-2xl p-5 font-mono text-xs text-text-main leading-relaxed focus:outline-none focus:border-brand-accent resize-y"
+                            />
+                          )}
+
+                          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-text-muted gap-2 pt-1">
+                            <span>* You can directly edit the text above before copying or exporting.</span>
+                            <span className="font-semibold text-text-main">
+                              {draftText ? `${draftText.split(/\s+/).filter(Boolean).length} words` : '0 words'}
+                            </span>
                           </div>
                         </div>
                       </div>

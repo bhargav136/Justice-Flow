@@ -572,3 +572,220 @@ Format your responses with clear markdown, bullet points, and practical numbered
 
   return fallbackPlatformHelp(message);
 };
+
+export const generateLegalDraft = async (
+  draftType: 'bail' | 'notice' | 'affidavit' | 'complaint' | 'objection',
+  caseTitle: string,
+  caseDescription: string,
+  documentContent: string
+): Promise<string> => {
+  const client = getAIClient();
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+  const draftPrompts: Record<string, string> = {
+    bail: `Draft a formal Regular Bail Application before the Hon'ble Sessions Court under Section 439 CrPC / Section 483 BNSS 2023.
+Case Title: "${caseTitle}".
+Case Facts & Evidentiary Background: ${caseDescription}
+Document Reference: ${documentContent.substring(0, 1500)}
+Include:
+1. Formal Court Heading (IN THE COURT OF THE PRINCIPAL DISTRICT & SESSIONS JUDGE)
+2. Memo of Parties (Applicant/Accused vs State/Complainant)
+3. Factual Matrix & Background
+4. Grounds for Bail (Cooperation with investigation, lack of flight risk, electronic evidence cryptographically preserved, parity, presumption of innocence)
+5. Prayer for Relief
+6. Verification & Affidavit clause.`,
+
+    notice: `Draft a formal Legal Demand / Cease & Desist Notice under legal practice standards.
+Case Title: "${caseTitle}".
+Subject Matter: ${caseDescription}
+Document Reference: ${documentContent.substring(0, 1500)}
+Include:
+1. Advocate Letterhead & Registered AD Header
+2. Addressee / Notice Recipient
+3. Factual Statement of Breach & Demand
+4. Specific Evidentiary Exhibits Cited
+5. 15-day Rectification Demand
+6. Warning of Civil & Criminal Legal Action without further notice.`,
+
+    affidavit: `Draft a formal Sworn Affidavit of Evidence-in-Chief under Order XVIII Rule 4 CPC and Section 63 BSA 2023.
+Case Title: "${caseTitle}".
+Factual Context: ${caseDescription}
+Document Reference: ${documentContent.substring(0, 1500)}
+Include:
+1. Court Heading & Case Number
+2. Deponent Declaration under solemn affirmation
+3. Paragraph-wise Factual Narrative
+4. Proof and Admissibility of Exhibits & Electronic Records (Sec 65B Compliance)
+5. Formal Verification Clause before Oath Commissioner.`,
+
+    complaint: `Draft a formal Criminal Complaint under Section 156(3) CrPC / Section 175(3) BNSS 2023.
+Case Title: "${caseTitle}".
+Factual Context: ${caseDescription}
+Document Reference: ${documentContent.substring(0, 1500)}
+Include:
+1. Before the Hon'ble Chief Judicial Magistrate / Metropolitan Magistrate
+2. Complainant vs Accused Persons
+3. Factual Sequence of the Offence
+4. Statutory Offences Made Out
+5. Prayer for Police Investigation / Cognizance.`,
+
+    objection: `Draft a formal Evidentiary Objections Petition challenging the Admissibility of Electronic Evidence under Section 65B Indian Evidence Act.
+Case Title: "${caseTitle}".
+Factual Context: ${caseDescription}
+Document Reference: ${documentContent.substring(0, 1500)}
+Include:
+1. Court Heading & Case Docket
+2. Specific Objections to Evidence Admissibility (Lack of contemporaneous hash certificate, chain of custody vulnerabilities, optical alteration)
+3. Case Precedents cited (Anvar P.V. vs P.K. Basheer & Arjun Panditrao)
+4. Prayer to Exclude / Strike from Record.`
+  };
+
+  if (client) {
+    const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    for (const model of modelsToTry) {
+      try {
+        const response = await client.models.generateContent({
+          model,
+          contents: [{ parts: [{ text: draftPrompts[draftType] || draftPrompts.bail }] }],
+          config: {
+            systemInstruction: "You are a Senior Judicial Drafter & Supreme Court Litigator for JusticeFlow AI. Generate formal, exhaustive, professionally formatted court pleadings ready for court filing.",
+          }
+        });
+        if (response.text) return response.text;
+      } catch (err) {
+        console.warn(`Draft generation with ${model} failed, trying next:`, err);
+      }
+    }
+  }
+
+  // Authentic Judicial Template Fallback
+  if (draftType === 'bail') {
+    return `### IN THE COURT OF THE PRINCIPAL DISTRICT & SESSIONS JUDGE AT NEW DELHI
+
+**BAIL APPLICATION NO. ______ OF 2026**
+**IN THE MATTER OF: FIR NO. ______**
+**UNDER SECTIONS: APPLICABLE PENAL PROVISIONS**
+**POLICE STATION: CRIME INVESTIGATION WING**
+
+**IN THE MATTER OF:**
+**${caseTitle}** (Applicant / Accused)  
+*Through Legal Counsel*  
+*Versus*  
+**STATE (NCT OF DELHI) & ANR.** (Respondent / Prosecution)
+
+---
+
+### APPLICATION UNDER SECTION 439 CR.P.C. READ WITH SECTION 483 OF BHARATIYA NAGARIK SURAKSHA SANHITA (BNSS), 2023 FOR GRANT OF REGULAR BAIL
+
+**MOST RESPECTFULLY SHOWETH:**
+
+1. That the Applicant is a law-abiding citizen of India with deep roots in society and has been falsely implicated in the present matter captioned **"${caseTitle}"**.
+2. **Factual Matrix**: ${caseDescription || 'The applicant has maintained full cooperation with the judicial authorities and all documentary records have been duly submitted.'}
+3. **Evidentiary Integrity**: That the primary evidence cited in the chargesheet has been cryptographically catalogued in the JusticeFlow Judicial Vault. No tampering with evidence is feasible as all digital exhibits are sealed with SHA-256 integrity digests.
+4. **No Flight Risk**: The applicant undertakes to surrender passport, attend every hearing, and abide by any stringent bail conditions imposed by this Hon'ble Court.
+5. **No Tampering with Witnesses**: The entire investigation is documentary in nature, and all relevant exhibits are in official judicial custody.
+
+### PRAYER
+Wherefore, in the light of the facts and circumstances stated above, it is most respectfully prayed that this Hon'ble Court may graciously be pleased to:
+- **(a)** Grant regular bail to the Applicant in connection with **"${caseTitle}"**;
+- **(b)** Pass such other and further orders as this Hon'ble Court may deem fit and proper in the interest of justice.
+
+**APPLICANT**  
+Through: **ADVOCATE FOR THE APPLICANT**  
+Dated: ${dateStr}  
+Place: New Delhi  
+
+---
+### VERIFICATION
+I, the deponent above named, do hereby verify that the contents of paragraphs 1 to 5 are true and correct to my knowledge and belief. Verified at New Delhi on this ${dateStr}.`;
+  }
+
+  if (draftType === 'notice') {
+    return `### LEGAL DEMAND & CEASE AND DESIST NOTICE
+**(Sent via Speed Post A.D. & Electronic Communication)**
+
+**Date**: ${dateStr}  
+**Reference ID**: JF-LEGAL-NOT-${Date.now().toString().slice(-6)}  
+
+**TO:**  
+**THE RESPONDENT / ADDRESSEE**  
+*Ref: Matter concerning "${caseTitle}"*  
+
+**UNDER INSTRUCTIONS FROM MY CLIENT**, I hereby serve upon you the following Legal Notice:
+
+1. That my Client is the registered aggrieved party in relation to **"${caseTitle}"**.
+2. **Factual Grounds**: ${caseDescription || 'Notice is hereby given regarding actionable statutory breaches documented in official records.'}
+3. **Documentary Evidence**: My client is in possession of contemporaneous electronic and physical documentation duly timestamped and verified under Section 65B of the Indian Evidence Act.
+4. **Demand for Rectification**: You are hereby called upon to immediately cease and desist from the impugned conduct and remedy the breach within **fifteen (15) days** from the receipt of this notice.
+5. **Notice of Legal Action**: Take notice that should you fail to comply within the stipulated 15 days, my client has peremptory instructions to initiate appropriate civil and criminal proceedings before the competent Court of Law entirely at your risk, cost, and consequence.
+
+**ADVOCATE / LEGAL COUNSEL**  
+Bar Council Enrollment No: D/_____/2020  
+JusticeFlow Litigation Chambers`;
+  }
+
+  if (draftType === 'affidavit') {
+    return `### IN THE COURT OF THE SENIOR CIVIL JUDGE / SESSIONS JUDGE
+**SUIT / CASE NO. ______ OF 2026**
+
+**IN THE MATTER OF:**  
+**${caseTitle}**  
+*... Plaintiff / Complainant*  
+*Versus*  
+**DEFENDANT / OPPOSITE PARTY**  
+*... Respondent*  
+
+---
+### AFFIDAVIT OF EVIDENCE UNDER ORDER XVIII RULE 4 C.P.C. & SECTION 63 B.S.A., 2023
+
+I, the Deponent herein, aged about 42 years, do hereby solemnly affirm and state on oath as under:
+
+1. I am the authorized representative / complainant in the aforementioned matter and am fully conversant with the facts and circumstances of the case.
+2. I reaffirm and reiterate the statements made in the plaint / petition in **"${caseTitle}"** as true and correct.
+3. **Exhibits on Record**: I tender into evidence the primary exhibits indexed in the Judicial Vault. The electronic records have been processed with SHA-256 cryptographic verification and satisfy all requirements of Section 65B of the Indian Evidence Act.
+4. **Statement of Truth**: ${caseDescription || 'The matters averred herein are derived from direct personal knowledge and contemporaneous official logs.'}
+
+**DEPONENT**  
+
+### VERIFICATION:
+Verified at New Delhi on this ${dateStr} that the contents of this affidavit are true to my personal knowledge and belief. No part of it is false and nothing material has been concealed therefrom.
+
+**DEPONENT**  
+Solemnly affirmed and signed before me.  
+**OATH COMMISSIONER / NOTARY PUBLIC**`;
+  }
+
+  if (draftType === 'complaint') {
+    return `### BEFORE THE HON'BLE COURT OF THE CHIEF JUDICIAL MAGISTRATE
+**CRIMINAL COMPLAINT U/S 156(3) Cr.P.C. / SECTION 175(3) BNSS, 2023**
+
+**COMPLAINANT**: ${caseTitle}  
+*Versus*  
+**ACCUSED PERSONS**: Accused No. 1 & Ors.  
+
+**MEMORANDUM OF COMPLAINT**:
+1. That the Complainant is lodging this formal complaint regarding cognizable offences committed in connection with **"${caseTitle}"**.
+2. **Factual Narrative**: ${caseDescription || 'The accused persons acted in common intention to commit offences as evidenced by the attached electronic records.'}
+3. **Evidentiary Proof**: Attached hereto are verified copies of exhibits, chronological timelines, and forensic audits establishing a prima facie case.
+4. **Prayer**: It is respectfully prayed that this Hon'ble Court be pleased to direct the Station House Officer to register an FIR and investigate the matter in accordance with law.
+
+**COMPLAINANT THROUGH ADVOCATE**  
+Date: ${dateStr}`;
+  }
+
+  // Default: Objections Petition
+  return `### IN THE HON'BLE COURT OF SESSIONS
+**IN THE MATTER OF: ${caseTitle}**
+
+### APPLICATION RAISING PRELIMINARY OBJECTIONS TO THE ADMISSIBILITY OF ELECTRONIC EVIDENCE
+
+**MOST RESPECTFULLY SHOWETH:**
+1. That the electronic evidence tendered by the opposing party fails to comply with the mandatory statutory conditions laid down in Section 65B(4) of the Indian Evidence Act and the law laid down by the Hon'ble Supreme Court in *Arjun Panditrao Khotkar v. Kailash Kushanrao Gorantyal (2020)*.
+2. **Lack of Contemporaneous Certificate**: The records were not accompanied by a contemporaneous cryptographic hash certificate produced at the time of system operation.
+3. **Chain of Custody Infirmity**: Unexplained gaps exist in the physical and electronic custody of the cited devices.
+4. **Prayer**: It is prayed that the uncertified electronic records be excluded from consideration.
+
+**ADVOCATE FOR THE APPLICANT**  
+Date: ${dateStr}`;
+};
+
