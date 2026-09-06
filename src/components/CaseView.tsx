@@ -530,15 +530,36 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     const qChat = query(collection(db, 'chats'), where('documentId', '==', activeDoc.id));
     const unsubChat = onSnapshot(qChat, (snapshot) => {
       if (!snapshot.empty) {
-        const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as ChatMessage));
+        const msgs = snapshot.docs.map(d => {
+          const data = d.data();
+          // Use localId (stored on Firestore doc) as the canonical dedup key so it merges with locally-added message
+          return { id: data.localId || d.id, ...data } as ChatMessage;
+        });
         setChatMessages(prev => {
           const map = new Map<string, ChatMessage>();
-          prev.forEach(m => map.set(m.id || `${m.role}_${m.content.slice(0, 30)}`, m));
-          msgs.forEach(m => map.set(m.id || `${m.role}_${m.content.slice(0, 30)}`, m));
+          // First put all existing local messages in the map keyed by id
+          prev.forEach(m => map.set(m.id, m));
+          // Then merge Firestore messages — using the same key (localId) they will OVERWRITE the local placeholder
+          // with the Firestore version (which has proper serverTimestamp), not create a duplicate
+          msgs.forEach(m => {
+            // Only add if not already present as a local message with same id
+            if (!map.has(m.id)) {
+              map.set(m.id, m);
+            } else {
+              // Overwrite with Firestore version so createdAt gets the real server timestamp
+              const existing = map.get(m.id)!;
+              map.set(m.id, { ...existing, ...m });
+            }
+          });
           return Array.from(map.values()).sort((a, b) => {
-            const timeA = (a.createdAt as any)?.seconds || ((a.createdAt as any)?.toDate ? (a.createdAt as any).toDate().getTime() / 1000 : (a.createdAt instanceof Date ? a.createdAt.getTime() / 1000 : 0));
-            const timeB = (b.createdAt as any)?.seconds || ((b.createdAt as any)?.toDate ? (b.createdAt as any).toDate().getTime() / 1000 : (b.createdAt instanceof Date ? b.createdAt.getTime() / 1000 : 0));
-            return timeA - timeB;
+            const getTime = (ts: any): number => {
+              if (!ts) return 0;
+              if (ts.seconds) return ts.seconds;
+              if (ts.toDate) return ts.toDate().getTime() / 1000;
+              if (ts instanceof Date) return ts.getTime() / 1000;
+              return 0;
+            };
+            return getTime(a.createdAt) - getTime(b.createdAt);
           });
         });
       }
@@ -908,6 +929,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     try {
       try {
         await addDoc(collection(db, 'chats'), {
+          localId: localUserMsg.id,
           documentId: activeDoc.id,
           role: 'user',
           content: userMsg,
@@ -976,6 +998,7 @@ ${activeDoc.textContent || activeDoc.fileName}
 
       try {
         await addDoc(collection(db, 'chats'), {
+          localId: localAssistantMsg.id,
           documentId: activeDoc.id,
           role: 'assistant',
           content: response,
