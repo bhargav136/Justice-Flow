@@ -216,7 +216,7 @@ ${textContent || fileName}`
   }
 
   // Model cascade
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"];
   for (const model of modelsToTry) {
     try {
       const response = await client.models.generateContent({
@@ -393,39 +393,34 @@ export const chatWithCase = async (
     return fallbackChatAssistant(documentContent, message);
   }
 
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"];
   
   for (const model of modelsToTry) {
     try {
       const chat = client.chats.create({
         model,
         config: {
-          systemInstruction: `You are JusticeFlow AI, an elite Judicial Intelligence Assistant. You are assisting a Magistrate or Judge in analyzing legal documents and case files. 
-Answer questions with judicial neutrality, precision, and citation of specific sections of the document when possible.
+          systemInstruction: `You are JusticeFlow AI, an elite Judicial Intelligence & Legal Reasoning Assistant assisting a Presiding Magistrate or Judge.
+Your responses must be exceptionally clear, authoritative, highly detailed, well-structured, and formatted with Markdown (headers, tables, bold text, bullet points).
+
+GUIDELINES FOR YOUR RESPONSES:
+1. **Neutrality & Precision**: Speak with the authority and gravitas of a Senior Judicial Law Clerk or Master of the Court.
+2. **Context-Aware Analysis**: Analyze the complete case dossier provided below (which includes all evidence files, text, upload dates, and timestamps).
+3. **Statutory & Precedent Grounding**: Cite applicable statutory provisions (e.g. Bharatiya Nyaya Sanhita / IPC, Bharatiya Nagarik Suraksha Sanhita / CrPC, Bharatiya Sakshya Adhiniyam / Indian Evidence Act Section 65B) and relevant legal principles wherever applicable.
+4. **Structured Layout**:
+   - Use bold headers (\`### ...\`) for main sections.
+   - Use bullet points for factual observations.
+   - Use Markdown tables for timelines or multi-item comparisons.
+   - Conclude with a clear **Judicial Assessment / Next Steps** for the presiding judge.
 
 CRITICAL INSTRUCTION FOR CASE SUMMARY INQUIRIES:
-When the user asks to summarize the case (e.g. "summarize the case", "case summary", "summarize case files", "summary", "give me summary of the case", "summarize all files"):
-1. You have been provided with the COMPLETE CASE DOSSIER containing ALL uploaded evidence files, their filenames, upload dates, and contents, as well as the case title, description, and status.
-2. Synthesize an exhaustive, structured Judicial Case Summary covering:
-   - **Case Header & Classification**: Case title, matter/charge, and current status.
-   - **Case Background & Core Facts**: Synthesize the core factual narrative across ALL uploaded evidence files.
-   - **File-by-File Evidence Breakdown**: Review and summarize findings from each uploaded document (explicitly citing file names).
-   - **Chronological Timeline & Critical Dates**: Key dates and milestones identified across all files.
-   - **Legal Issues & Evidentiary Standing**: Relevant statutory provisions, burden of proof, and evidentiary admissibility.
-   - **Judicial Recommendation**: Clear recommendations for the presiding judge.
-Be thorough, structured, and demonstrate complete knowledge of all files in the docket.
+When asked to summarize the case or files:
+- Synthesize an exhaustive, multi-file summary covering Case Header, Factual Core, Evidentiary Breakdown (by filename), Chronological Milestones, and Recommended Judicial Actions.
 
 CRITICAL INSTRUCTION FOR DATE & TIMELINE INQUIRIES:
-When the user asks about dates (e.g. "what are the dates", "mention all dates which i upload", "dates uploaded", "dates in the file", "timeline", "when"):
-1. FIRST clearly mention the exact Document Upload Date & Timestamp and file name specified in the metadata.
-2. Carefully and comprehensively extract EVERY SINGLE date, timestamp, occurrence time, and date range mentioned anywhere in the document.
-3. Present all extracted dates in chronological order with:
-   - Date / Timestamp
-   - Fact, Event, or Legal Action that took place
-   - Document quotation or section reference
-Never omit any date found in the document.
+- Extract EVERY single date, timestamp, and time interval mentioned across the case dossier and organize them in a chronological table.
 
-Document Content:
+Case Dossier & Evidence Context:
 ${documentContent || "Active Legal Document"}`
         },
         history: history.map(h => ({
@@ -443,7 +438,6 @@ ${documentContent || "Active Legal Document"}`
     }
   }
 
-  // Gracefully fallback to judicial engine if quota or network issue
   return fallbackChatAssistant(documentContent, message);
 };
 
@@ -538,7 +532,7 @@ export const askJusticeFlowHelp = async (
     return fallbackPlatformHelp(message);
   }
 
-  const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+  const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"];
 
   for (const model of modelsToTry) {
     try {
@@ -641,7 +635,7 @@ Include:
   };
 
   if (client) {
-    const modelsToTry = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"];
+    const modelsToTry = ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"];
     for (const model of modelsToTry) {
       try {
         const response = await client.models.generateContent({
