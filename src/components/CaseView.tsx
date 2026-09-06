@@ -192,8 +192,10 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const [isDeletingCase, setIsDeletingCase] = useState(false);
   const [caseSavedNotification, setCaseSavedNotification] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analyzingDocId = useRef<string | null>(null);
+  const isSendingRef = useRef(false);
 
   const effectiveDocuments = documents.length > 0 ? documents : (activeDoc ? [activeDoc] : []);
 
@@ -552,8 +554,11 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   }, [activeDoc]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [chatMessages]);
+    // Scroll to bottom inside the chat container only — never jump the whole page
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  }, [chatMessages, isChatting]);
 
   const handleFileSelectedForStaging = (file: File) => {
     if (file.size > 750 * 1024) {
@@ -874,6 +879,9 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
+    e.stopPropagation();
+    // Prevent double-fire (e.g. button click + form submit both triggering)
+    if (isSendingRef.current) return;
     const currentUserId = 
       auth.currentUser?.uid || 
       (window as any)._localUser?.uid || 
@@ -881,6 +889,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
       'demo-judge-001';
     if (!chatInput.trim() || !activeDoc || !currentUserId) return;
 
+    isSendingRef.current = true;
     const userMsg = chatInput;
     setChatInput('');
     setIsChatting(true);
@@ -989,6 +998,7 @@ ${activeDoc.textContent || activeDoc.fileName}
       setChatMessages(prev => [...prev, localErrorMsg]);
     } finally {
       setIsChatting(false);
+      isSendingRef.current = false;
     }
   };
 
@@ -2767,8 +2777,8 @@ ${activeDoc.textContent || activeDoc.fileName}
             </div>
 
             {/* Chat Section */}
-            <div id="judicial-chat-section" className="glass-card rounded-[2.5rem] flex flex-col overflow-hidden">
-              <div className="bg-surface/50 border-b border-border-main px-8 py-3.5 flex items-center justify-between">
+            <div id="judicial-chat-section" className="glass-card rounded-[2.5rem] flex flex-col overflow-hidden" style={{ height: '680px', minHeight: '480px' }}>
+              <div className="bg-surface/50 border-b border-border-main px-8 py-3.5 flex items-center justify-between shrink-0">
                 <div className="flex items-center gap-3">
                   <MessageSquare className="w-5 h-5 text-brand-accent" />
                   <h3 className="text-[10px] font-bold text-text-main uppercase tracking-[0.3em]">{t('case.chatInterface')}</h3>
@@ -2797,7 +2807,7 @@ ${activeDoc.textContent || activeDoc.fileName}
                 </motion.button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div ref={chatScrollRef} className="flex-1 overflow-y-auto p-5 space-y-4 min-h-0">
                 {chatMessages.length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center">
                     <div className="flex flex-col items-center justify-center text-brand-accent/30 mb-8">
@@ -2833,22 +2843,23 @@ ${activeDoc.textContent || activeDoc.fileName}
                     msg.role === 'user' ? "ml-auto items-end" : "items-start"
                   )}>
                     <div className={cn(
-                      "p-6 rounded-[1.5rem] text-sm leading-relaxed shadow-xl",
+                      "p-4 rounded-[1.2rem] text-sm leading-relaxed shadow-md",
                       msg.role === 'user' 
                         ? "bg-brand-primary text-white rounded-tr-none shadow-brand-primary/10" 
                         : "bg-surface text-text-main rounded-tl-none border border-border-main"
                     )}>
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
-                    <span className="text-[9px] font-bold text-text-muted mt-2 px-2 uppercase tracking-widest">
+                    <span className="text-[9px] font-bold text-text-muted mt-1.5 px-2 uppercase tracking-widest">
                       {msg.role === 'user' ? 'Judge' : 'JusticeFlow AI'} • {msg.createdAt?.toDate ? msg.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Real-time'}
                     </span>
                   </div>
                 ))}
                 {isChatting && (
                   <div className="flex items-start max-w-[85%]">
-                    <div className="bg-surface p-6 rounded-[1.5rem] rounded-tl-none border border-border-main">
-                      <Loader2 className="w-5 h-5 animate-spin text-brand-accent" />
+                    <div className="bg-surface p-4 rounded-[1.2rem] rounded-tl-none border border-border-main flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin text-brand-accent shrink-0" />
+                      <span className="text-xs text-text-muted font-medium">Judicial AI is thinking...</span>
                     </div>
                   </div>
                 )}
