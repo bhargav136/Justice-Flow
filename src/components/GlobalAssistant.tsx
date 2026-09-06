@@ -169,10 +169,12 @@ export default function GlobalAssistant() {
 
   const handleDragStart = () => {
     setIsDragging(true);
+    hasMovedRef.current = false;
   };
 
   const handleDragEnd = () => {
-    setIsDragging(false);
+    // Keep isDragging true briefly so the click event that fires after drag-end is suppressed
+    setTimeout(() => setIsDragging(false), 120);
     try {
       localStorage.setItem('justiceflow_guide_pos', JSON.stringify({ x: x.get(), y: y.get() }));
     } catch (err) {}
@@ -182,6 +184,11 @@ export default function GlobalAssistant() {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
+    }
+    // If we just finished dragging, don't open the guide
+    if (isDragging || hasMovedRef.current) {
+      hasMovedRef.current = false;
+      return;
     }
     setIsOpen(true);
   };
@@ -211,6 +218,7 @@ export default function GlobalAssistant() {
       dragElastic={0.06}
       dragConstraints={dragBounds}
       onDragStart={handleDragStart}
+      onDrag={() => { hasMovedRef.current = true; }}
       onDragEnd={handleDragEnd}
       className={`fixed bottom-6 right-6 z-[100] ${isDragging ? 'cursor-grabbing select-none' : ''}`}
     >
