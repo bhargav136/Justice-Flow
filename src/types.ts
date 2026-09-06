@@ -19,6 +19,32 @@ export interface Document {
   createdAt: any;
 }
 
+export interface Contradiction {
+  issue: string;
+  conflict: string;
+  severity: 'Critical' | 'Material' | 'Minor';
+  sourceA: string;
+  sourceB: string;
+  impeachmentStrategy: string;
+}
+
+export interface CrossExamItem {
+  id: string;
+  question: string;
+  targetVulnerability: string;
+  purpose: string;
+  recommendedDefense: string;
+  objectionBasis: string;
+}
+
+export interface ChainOfCustodyData {
+  sha256Hash: string;
+  intakeTimestamp: string;
+  custodian: string;
+  tamperStatus: 'Verified Intact' | 'Protected';
+  complianceStandard: string;
+}
+
 export interface Analysis {
   id: string;
   documentId: string;
@@ -26,6 +52,9 @@ export interface Analysis {
   timeline: TimelineEvent[];
   evidence_audit: ForensicReport[];
   legal_points: string[];
+  contradictions?: Contradiction[];
+  cross_examination?: CrossExamItem[];
+  chain_of_custody?: ChainOfCustodyData;
   userId: string;
   createdAt: any;
 }
