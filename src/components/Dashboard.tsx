@@ -313,19 +313,47 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
 
   const handleUpdateCase = async (e: React.FormEvent) => {
     e.preventDefault();
-    const currentUserId = auth.currentUser?.uid || (window as any)._localUser?.uid;
-    if (!editingCase || !newCaseTitle.trim() || !currentUserId) return;
+    if (!editingCase || !newCaseTitle.trim()) return;
 
+    const targetId = editingCase.id;
+    const updatedTitle = newCaseTitle.trim();
+    const updatedDescription = newCaseDescription.trim();
+
+    const updatedCase: Case = {
+      ...editingCase,
+      title: updatedTitle,
+      description: updatedDescription,
+    };
+
+    // 1. Immediately update state so UI changes with 0ms delay
+    setCases(prev => prev.map(c => c.id === targetId ? updatedCase : c));
+
+    // 2. Immediately update local storage
     try {
-      await updateDoc(doc(db, 'cases', editingCase.id), {
-        title: newCaseTitle,
-        description: newCaseDescription,
+      const dashCasesRaw = localStorage.getItem('justiceflow_dashboard_cases');
+      if (dashCasesRaw) {
+        const dashCases = JSON.parse(dashCasesRaw);
+        const updatedDash = dashCases.map((c: any) => c.id === targetId ? updatedCase : c);
+        localStorage.setItem('justiceflow_dashboard_cases', JSON.stringify(updatedDash));
+      }
+      localStorage.setItem(`justiceflow_case_data_${targetId}`, JSON.stringify(updatedCase));
+    } catch (err) {}
+
+    // 3. Reset form and show success notification
+    setEditingCase(null);
+    setNewCaseTitle('');
+    setNewCaseDescription('');
+    setCompletedNotice(`✏️ Case "${updatedTitle}" updated successfully.`);
+    setTimeout(() => setCompletedNotice(null), 4000);
+
+    // 4. Persist to Firestore asynchronously
+    try {
+      await updateDoc(doc(db, 'cases', targetId), {
+        title: updatedTitle,
+        description: updatedDescription,
       });
-      setEditingCase(null);
-      setNewCaseTitle('');
-      setNewCaseDescription('');
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, `cases/${editingCase.id}`);
+      console.warn('Firestore case update notice (local state maintained):', error);
     }
   };
 
@@ -648,10 +676,12 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
 
               <div className="flex items-center gap-2">
                 <motion.button
+                  type="button"
                   whileHover={{ scale: 1.15 }}
                   whileTap={{ scale: 0.85 }}
                   onClick={(e) => openEditModal(e, c)}
-                  className="p-2.5 text-text-muted hover:text-brand-accent hover:bg-surface/50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                  title="Edit Case Details"
+                  className="p-2.5 text-text-muted hover:text-brand-accent hover:bg-surface/80 rounded-xl transition-all opacity-90 sm:opacity-0 sm:group-hover:opacity-100 hover:!opacity-100 cursor-pointer"
                 >
                   <Edit2 className="w-4 h-4" />
                 </motion.button>
@@ -661,7 +691,7 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
                   whileTap={{ scale: 0.85 }}
                   onClick={(e) => handleOpenDeleteConfirm(e, c)}
                   title="Permanently Delete Case"
-                  className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/15 rounded-xl transition-all opacity-80 group-hover:opacity-100"
+                  className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/15 rounded-xl transition-all opacity-90 sm:opacity-0 sm:group-hover:opacity-100 hover:!opacity-100 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4 text-red-400" />
                 </motion.button>
@@ -744,11 +774,11 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
       </div>
 
       {(showNewCaseModal || editingCase) && (
-        <div className="fixed inset-0 bg-brand-deep/80 backdrop-blur-md flex items-center justify-center z-[100] p-4">
+        <div className="fixed inset-0 bg-brand-deep/80 backdrop-blur-md flex items-center justify-center z-[100] p-3 sm:p-4 overflow-y-auto">
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="glass-card rounded-3xl p-8 max-w-lg w-full border-border-main"
+            className="glass-card rounded-3xl p-5 sm:p-8 max-w-lg w-full border-border-main my-auto max-h-[92vh] overflow-y-auto shadow-2xl"
           >
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-2xl font-bold text-text-main tracking-tight">

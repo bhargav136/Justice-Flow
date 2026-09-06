@@ -394,23 +394,23 @@ function AppContent() {
   return (
     <div className="min-h-screen bg-bg-deep text-text-main font-sans">
       {/* Navigation */}
-      <nav className="bg-surface/80 backdrop-blur-md border-b border-border-main h-20 flex items-center justify-between px-8 sticky top-0 z-50">
-        <div className="flex items-center gap-4 cursor-pointer" onClick={() => setActiveCaseId(null)}>
-          <div className="w-10 h-10 bg-surface border border-border-main rounded-xl flex items-center justify-center shadow-sm overflow-hidden p-1.5">
+      <nav className="bg-surface/80 backdrop-blur-md border-b border-border-main h-16 sm:h-20 flex items-center justify-between px-3 sm:px-8 sticky top-0 z-50">
+        <div className="flex items-center gap-2.5 sm:gap-4 cursor-pointer" onClick={() => setActiveCaseId(null)}>
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-surface border border-border-main rounded-xl flex items-center justify-center shadow-sm overflow-hidden p-1 sm:p-1.5">
             <JusticeFlowLogo />
           </div>
-          <span className="font-bold text-2xl text-text-main tracking-tighter">JusticeFlow</span>
+          <span className="font-bold text-xl sm:text-2xl text-text-main tracking-tighter">JusticeFlow</span>
         </div>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-2 sm:gap-6">
           <motion.button
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9, rotate: 18 }}
             onClick={toggleTheme}
-            className="p-2.5 text-text-muted hover:text-brand-accent hover:bg-brand-accent/10 rounded-xl transition-all"
+            className="p-2 sm:p-2.5 text-text-muted hover:text-brand-accent hover:bg-brand-accent/10 rounded-xl transition-all"
             title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
           >
-            {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            {theme === 'light' ? <Moon className="w-4 h-4 sm:w-5 sm:h-5" /> : <Sun className="w-4 h-4 sm:w-5 sm:h-5" />}
           </motion.button>
 
           <LanguageSwitcher />
@@ -419,7 +419,7 @@ function AppContent() {
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.97 }}
             onClick={() => setIsProfileModalOpen(true)}
-            className="flex items-center gap-4 pr-6 border-r border-border-main cursor-pointer group hover:opacity-95 transition-all"
+            className="flex items-center gap-2 sm:gap-4 pr-2 sm:pr-6 border-r border-border-main cursor-pointer group hover:opacity-95 transition-all"
             title="Click to view & edit your profile"
           >
             <div className="text-right hidden md:block">
@@ -436,7 +436,7 @@ function AppContent() {
               </div>
             </div>
             {/* Custom or Selected Avatar */}
-            <div className="w-10 h-10 rounded-xl border border-border-main shadow-lg overflow-hidden bg-surface group-hover:ring-2 group-hover:ring-brand-accent transition-all relative">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl border border-border-main shadow-lg overflow-hidden bg-surface group-hover:ring-2 group-hover:ring-brand-accent transition-all relative">
               <img 
                 src={profile?.photoURL || user.photoURL || `https://api.dicebear.com/7.x/avataaars/svg?seed=ProfessionalJudge&backgroundColor=b6e3f4,c0aede,d1d4f9`} 
                 className="w-full h-full object-cover" 
@@ -448,15 +448,15 @@ function AppContent() {
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             onClick={() => setShowSignOutConfirm(true)}
-            className="p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
+            className="p-2 sm:p-2.5 text-text-muted hover:text-red-400 hover:bg-red-400/10 rounded-xl transition-all"
             title={t('auth.signOut') || 'Sign Out'}
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4 sm:w-5 sm:h-5" />
           </motion.button>
         </div>
       </nav>
 
-      <main className="max-w-[1600px] mx-auto p-6">
+      <main className="max-w-[1600px] mx-auto p-3 sm:p-6">
         <Suspense fallback={
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-brand-accent" />
