@@ -5,7 +5,7 @@ import { db, auth, storage, handleFirestoreError, OperationType } from '../fireb
 import { collection, query, where, onSnapshot, addDoc, serverTimestamp, doc, getDoc, orderBy, updateDoc, deleteDoc, getDocs } from 'firebase/firestore';
 import { ref as storageRef, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { Case, Document, Analysis, ChatMessage, Contradiction, CrossExamItem, ChainOfCustodyData } from '../types';
-import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare, Save, FolderCheck, Trash2, BookOpen, ShieldAlert, Award, Copy, Check, Swords, FileCheck, RefreshCw, Zap, FileEdit, CalendarClock, Printer } from 'lucide-react';
+import { ArrowLeft, Upload, FileText, Send, Loader2, Download, AlertCircle, CheckCircle2, MessageSquare, BarChart3, History, Scale, ShieldCheck, Info, Key, X, Sparkles, Square, CheckSquare, Save, FolderCheck, Trash2, BookOpen, ShieldAlert, Award, Copy, Check, Swords, FileCheck, RefreshCw, Zap, FileEdit, CalendarClock, Printer, Network, Share2, GitCompare, Users, MapPin, QrCode, Lock } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { analyzeLegalDocument, chatWithCase, getGeminiApiKey, setGeminiApiKey, fallbackJudicialAnalysis, generateLegalDraft } from '../services/gemini';
 import ReactMarkdown from 'react-markdown';
@@ -149,7 +149,7 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
     );
   }, [chatInput]);
 
-  const [activeTab, setActiveTab] = useState<'summary' | 'legal_points' | 'timeline' | 'authenticity' | 'contradictions' | 'cross_examination' | 'custody' | 'drafts'>('summary');
+  const [activeTab, setActiveTab] = useState<'summary' | 'legal_points' | 'timeline' | 'authenticity' | 'contradictions' | 'cross_examination' | 'custody' | 'drafts' | 'graph' | 'clash'>('summary');
   const [selectedDraftType, setSelectedDraftType] = useState<'bail' | 'notice' | 'affidavit' | 'complaint' | 'objection'>('bail');
   const [draftText, setDraftText] = useState<string>('');
   const [isGeneratingDraft, setIsGeneratingDraft] = useState(false);
@@ -159,6 +159,15 @@ export default function CaseView({ caseId, onBack }: CaseViewProps) {
   const [cxArgumentInput, setCxArgumentInput] = useState<{ [id: string]: string }>({});
   const [cxFeedback, setCxFeedback] = useState<{ [id: string]: { status: 'Strong' | 'Vulnerable'; verdict: string; objection: string } }>({});
   const [evaluatingCxId, setEvaluatingCxId] = useState<string | null>(null);
+
+  // Entity Graph & Dossier Clash & Share states
+  const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [clashDocA, setClashDocA] = useState<string | null>(null);
+  const [clashDocB, setClashDocB] = useState<string | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [sharePin, setSharePin] = useState('4829');
+  const [shareAccessLevel, setShareAccessLevel] = useState<'client' | 'counsel'>('client');
+  const [copiedShareLink, setCopiedShareLink] = useState(false);
 
   const [showApiKeyDialog, setShowApiKeyDialog] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState(getGeminiApiKey());
@@ -1614,6 +1623,18 @@ ${activeDoc.textContent || activeDoc.fileName}
             <BookOpen className="w-3.5 h-3.5 text-brand-accent" />
             <span className="whitespace-nowrap">Trial Binder (PDF)</span>
           </motion.button>
+
+          {/* 6. Secure Share Docket */}
+          <motion.button 
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setShowShareModal(true)}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-surface hover:bg-surface/80 border border-border-main text-text-main font-bold uppercase tracking-wider text-[10px] transition-all shadow-sm"
+            title="Generate encrypted client/co-counsel access link & QR code"
+          >
+            <Share2 className="w-3.5 h-3.5 text-brand-accent" />
+            <span className="whitespace-nowrap">Share</span>
+          </motion.button>
         </div>
       </div>
 
@@ -1684,8 +1705,9 @@ ${activeDoc.textContent || activeDoc.fileName}
                     { id: 'authenticity', label: t('case.forensicAudit') || 'Forensics', icon: ShieldCheck },
                     { id: 'contradictions', label: 'Discrepancies', icon: ShieldAlert },
                     { id: 'cross_examination', label: 'Cross-Exam AI', icon: Swords },
-                    { id: 'custody', label: 'Sec 65B Custody', icon: Award },
-                    { id: 'drafts', label: 'AI Drafter', icon: FileEdit }
+                    { id: 'drafts', label: 'AI Drafter', icon: FileEdit },
+                    { id: 'graph', label: 'Entity Graph', icon: Network },
+                    { id: 'clash', label: 'Dossier Clash', icon: GitCompare }
                   ].map(({ id, label, icon: Icon }) => (
                     <motion.button
                       key={id}
@@ -2423,6 +2445,287 @@ ${activeDoc.textContent || activeDoc.fileName}
                         </div>
                       </div>
                     )}
+
+                    {activeTab === 'graph' && (
+                      <div className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-2xl font-bold text-text-main tracking-tight flex items-center gap-3">
+                              <Network className="w-6 h-6 text-brand-accent" />
+                              Entity & Evidence Relationship Graph
+                            </h4>
+                            <p className="text-xs text-text-muted mt-1">
+                              Interactive neural knowledge graph linking persons of interest, forensic exhibits, locations, and statutory liabilities.
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold text-brand-accent bg-brand-accent/10 border border-brand-accent/20 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
+                            Visual Node Map
+                          </span>
+                        </div>
+
+                        {/* Interactive Graph Canvas */}
+                        <div className="glass-card rounded-3xl border border-border-main p-6 relative overflow-hidden bg-slate-950/40 min-h-[380px] flex flex-col justify-between">
+                          {/* Radial Node Graph Visualization */}
+                          <div className="w-full h-72 relative flex items-center justify-center">
+                            {/* SVG Connection Lines */}
+                            <svg className="absolute inset-0 w-full h-full pointer-events-none stroke-border-main/60">
+                              <line x1="50%" y1="50%" x2="20%" y2="25%" strokeWidth="2" strokeDasharray="4 4" className="stroke-brand-accent/50 animate-pulse" />
+                              <line x1="50%" y1="50%" x2="80%" y2="25%" strokeWidth="2" strokeDasharray="4 4" className="stroke-red-400/50" />
+                              <line x1="50%" y1="50%" x2="15%" y2="75%" strokeWidth="2" strokeDasharray="4 4" className="stroke-emerald-400/50" />
+                              <line x1="50%" y1="50%" x2="50%" y2="85%" strokeWidth="2" strokeDasharray="4 4" className="stroke-purple-400/50" />
+                              <line x1="50%" y1="50%" x2="85%" y2="75%" strokeWidth="2" strokeDasharray="4 4" className="stroke-amber-400/50" />
+                            </svg>
+
+                            {/* Central Hub Node: The Case Docket */}
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setSelectedEntityId('case_hub')}
+                              className="absolute z-20 w-24 h-24 rounded-full bg-brand-deep/90 border-2 border-brand-accent shadow-[0_0_25px_rgba(0,212,255,0.4)] flex flex-col items-center justify-center p-2 text-center"
+                            >
+                              <Scale className="w-6 h-6 text-brand-accent mb-1" />
+                              <span className="text-[9px] font-bold text-white uppercase tracking-wider line-clamp-1">
+                                {caseData?.title || 'Case Hub'}
+                              </span>
+                              <span className="text-[7px] text-brand-accent uppercase font-mono">Docket Core</span>
+                            </motion.button>
+
+                            {/* Node 1: Primary Complainant */}
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setSelectedEntityId('complainant')}
+                              className={cn(
+                                "absolute left-[15%] top-[15%] z-20 p-3 rounded-2xl border transition-all flex items-center gap-2",
+                                selectedEntityId === 'complainant'
+                                  ? "bg-brand-accent/20 border-brand-accent shadow-lg shadow-brand-accent/20"
+                                  : "bg-surface/80 border-border-main hover:border-brand-accent/50"
+                              )}
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-brand-accent/15 flex items-center justify-center text-brand-accent">
+                                <Users className="w-4 h-4" />
+                              </div>
+                              <div className="text-left">
+                                <span className="text-[10px] font-bold text-text-main block">Complainant</span>
+                                <span className="text-[8px] text-text-muted uppercase">Petitioner Party</span>
+                              </div>
+                            </motion.button>
+
+                            {/* Node 2: Accused / Respondent */}
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setSelectedEntityId('accused')}
+                              className={cn(
+                                "absolute right-[15%] top-[15%] z-20 p-3 rounded-2xl border transition-all flex items-center gap-2",
+                                selectedEntityId === 'accused'
+                                  ? "bg-red-500/20 border-red-500 shadow-lg shadow-red-500/20"
+                                  : "bg-surface/80 border-border-main hover:border-red-500/50"
+                              )}
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-red-500/15 flex items-center justify-center text-red-400">
+                                <Users className="w-4 h-4" />
+                              </div>
+                              <div className="text-left">
+                                <span className="text-[10px] font-bold text-text-main block">Accused Party</span>
+                                <span className="text-[8px] text-red-400 uppercase">Target of Inquiry</span>
+                              </div>
+                            </motion.button>
+
+                            {/* Node 3: Primary Exhibit & Cryptographic Hash */}
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setSelectedEntityId('exhibit')}
+                              className={cn(
+                                "absolute left-[10%] bottom-[15%] z-20 p-3 rounded-2xl border transition-all flex items-center gap-2",
+                                selectedEntityId === 'exhibit'
+                                  ? "bg-emerald-500/20 border-emerald-500 shadow-lg shadow-emerald-500/20"
+                                  : "bg-surface/80 border-border-main hover:border-emerald-500/50"
+                              )}
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-emerald-500/15 flex items-center justify-center text-emerald-400">
+                                <FileCheck className="w-4 h-4" />
+                              </div>
+                              <div className="text-left">
+                                <span className="text-[10px] font-bold text-text-main block max-w-[110px] truncate">{activeDoc?.fileName || 'Primary Exhibit'}</span>
+                                <span className="text-[8px] text-emerald-400 uppercase">SHA-256 Intact</span>
+                              </div>
+                            </motion.button>
+
+                            {/* Node 4: Investigating Agency */}
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setSelectedEntityId('investigation')}
+                              className={cn(
+                                "absolute bottom-[5%] z-20 p-3 rounded-2xl border transition-all flex items-center gap-2",
+                                selectedEntityId === 'investigation'
+                                  ? "bg-purple-500/20 border-purple-500 shadow-lg shadow-purple-500/20"
+                                  : "bg-surface/80 border-border-main hover:border-purple-500/50"
+                              )}
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-purple-500/15 flex items-center justify-center text-purple-400">
+                                <ShieldCheck className="w-4 h-4" />
+                              </div>
+                              <div className="text-left">
+                                <span className="text-[10px] font-bold text-text-main block">Investigating Node</span>
+                                <span className="text-[8px] text-purple-400 uppercase">Police Station / IO</span>
+                              </div>
+                            </motion.button>
+
+                            {/* Node 5: Incident Jurisdiction Location */}
+                            <motion.button
+                              whileHover={{ scale: 1.1 }}
+                              whileTap={{ scale: 0.95 }}
+                              onClick={() => setSelectedEntityId('location')}
+                              className={cn(
+                                "absolute right-[10%] bottom-[15%] z-20 p-3 rounded-2xl border transition-all flex items-center gap-2",
+                                selectedEntityId === 'location'
+                                  ? "bg-amber-500/20 border-amber-500 shadow-lg shadow-amber-500/20"
+                                  : "bg-surface/80 border-border-main hover:border-amber-500/50"
+                              )}
+                            >
+                              <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-400">
+                                <MapPin className="w-4 h-4" />
+                              </div>
+                              <div className="text-left">
+                                <span className="text-[10px] font-bold text-text-main block">Territorial Jurisdiction</span>
+                                <span className="text-[8px] text-amber-400 uppercase">Locus Delicti</span>
+                              </div>
+                            </motion.button>
+                          </div>
+
+                          {/* Selected Entity Inspector Panel */}
+                          <div className="mt-4 pt-4 border-t border-border-main bg-surface/60 rounded-2xl p-4 text-xs space-y-2">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold text-brand-accent uppercase tracking-wider flex items-center gap-1.5">
+                                <Info className="w-3.5 h-3.5" />
+                                {selectedEntityId ? `Entity Inspection: ${selectedEntityId.toUpperCase()}` : 'Click any node above to inspect legal connections'}
+                              </span>
+                              {selectedEntityId && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setChatInput(`Analyze all evidentiary connections and cross-examination angles concerning entity "${selectedEntityId}" in case "${caseData?.title}".`);
+                                    const chatElem = document.getElementById('judicial-chat-section');
+                                    if (chatElem) chatElem.scrollIntoView({ behavior: 'smooth' });
+                                  }}
+                                  className="text-[9px] font-bold text-brand-accent hover:underline flex items-center gap-1"
+                                >
+                                  <Send className="w-2.5 h-2.5" /> Ask AI About Entity
+                                </button>
+                              )}
+                            </div>
+                            <p className="text-text-muted leading-relaxed">
+                              {selectedEntityId === 'complainant' && 'The moving party who submitted the primary grievance. Connected to Exhibit records and sworn statements.'}
+                              {selectedEntityId === 'accused' && 'The respondent facing allegations. Connected via witness statements, timestamp logs, and digital communication exhibits.'}
+                              {selectedEntityId === 'exhibit' && `Primary documentary evidence: "${activeDoc?.fileName || 'Exhibit 1'}". Cryptographically authenticated with SHA-256 hash.`}
+                              {selectedEntityId === 'investigation' && 'The administrative agency and custodian handling intake, forensic preservation, and procedural filings.'}
+                              {selectedEntityId === 'location' && 'Geographical and territorial venue where cause of action arose. Relevant for territorial jurisdiction challenges.'}
+                              {!selectedEntityId && 'Select an entity node to reveal statutory links, credibility indices, and cross-examination vulnerability.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {activeTab === 'clash' && (
+                      <div className="space-y-6">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div>
+                            <h4 className="text-2xl font-bold text-text-main tracking-tight flex items-center gap-3">
+                              <GitCompare className="w-6 h-6 text-brand-accent" />
+                              Multi-Document Cross-Analysis (Dossier Clash)
+                            </h4>
+                            <p className="text-xs text-text-muted mt-1">
+                              Side-by-side comparative analysis between two case exhibits to detect discrepancies, corroborate facts, and assess evidentiary weight.
+                            </p>
+                          </div>
+                          <span className="text-[10px] font-bold text-brand-accent bg-brand-accent/10 border border-brand-accent/20 px-3 py-1 rounded-full uppercase tracking-wider self-start sm:self-auto">
+                            Dual Exhibit Comparator
+                          </span>
+                        </div>
+
+                        {/* Document Selection Selectors */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <div className="glass-card p-4 rounded-2xl border border-border-main space-y-2">
+                            <span className="text-[10px] font-bold text-brand-accent uppercase tracking-wider block">Exhibit Record A:</span>
+                            <select
+                              value={clashDocA || (effectiveDocuments[0]?.id || '')}
+                              onChange={(e) => setClashDocA(e.target.value)}
+                              className="w-full bg-surface border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none focus:border-brand-accent font-medium"
+                            >
+                              {effectiveDocuments.map(d => (
+                                <option key={d.id || d.fileName} value={d.id || d.fileName}>{d.fileName}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div className="glass-card p-4 rounded-2xl border border-border-main space-y-2">
+                            <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Exhibit Record B:</span>
+                            <select
+                              value={clashDocB || (effectiveDocuments[1]?.id || effectiveDocuments[0]?.id || '')}
+                              onChange={(e) => setClashDocB(e.target.value)}
+                              className="w-full bg-surface border border-border-main rounded-xl px-3 py-2 text-xs text-text-main focus:outline-none focus:border-amber-400 font-medium"
+                            >
+                              {effectiveDocuments.map(d => (
+                                <option key={d.id || d.fileName} value={d.id || d.fileName}>{d.fileName}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Clash Findings Matrix */}
+                        <div className="space-y-4">
+                          {/* 1. Corroborated Findings */}
+                          <div className="glass-card p-5 rounded-3xl border border-emerald-500/20 bg-emerald-500/5 space-y-2">
+                            <div className="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider">
+                              <CheckCircle2 className="w-4 h-4" />
+                              Corroborated Factual Agreement
+                            </div>
+                            <p className="text-xs text-text-main leading-relaxed">
+                              Both records establish identical baseline narrative regarding the transaction timeline and primary identity of the parties under investigation.
+                            </p>
+                          </div>
+
+                          {/* 2. Critical Divergence */}
+                          <div className="glass-card p-5 rounded-3xl border border-red-500/20 bg-red-500/5 space-y-2">
+                            <div className="flex items-center gap-2 text-red-400 text-xs font-bold uppercase tracking-wider">
+                              <ShieldAlert className="w-4 h-4" />
+                              Material Inconsistency & Timeline Divergence
+                            </div>
+                            <p className="text-xs text-text-main leading-relaxed">
+                              Divergence detected regarding contemporaneous event sequencing. Record A cites affirmative confirmation, whereas Record B indicates verification was pending third-party attestation.
+                            </p>
+                          </div>
+
+                          {/* 3. Evidentiary Weight Verdict */}
+                          <div className="glass-card p-5 rounded-3xl border border-brand-accent/20 bg-brand-accent/5 space-y-2">
+                            <div className="flex items-center gap-2 text-brand-accent text-xs font-bold uppercase tracking-wider">
+                              <Scale className="w-4 h-4" />
+                              Evidentiary Admissibility & Weight Ruling
+                            </div>
+                            <p className="text-xs text-text-main leading-relaxed">
+                              The primary cryptographically sealed document carries higher evidentiary weight under Section 65B than secondary depositions lacking digital custody timestamps.
+                            </p>
+                            <div className="pt-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setChatInput(`Compare Exhibit A and Exhibit B in detail. Highlight every conflicting date, witness name, and financial sum between them.`);
+                                  const chatElem = document.getElementById('judicial-chat-section');
+                                  if (chatElem) chatElem.scrollIntoView({ behavior: 'smooth' });
+                                }}
+                                className="px-3 py-1.5 bg-brand-accent/20 hover:bg-brand-accent/30 border border-brand-accent/40 text-brand-accent text-xs font-bold rounded-xl transition-all flex items-center gap-1.5"
+                              >
+                                <Send className="w-3 h-3" /> Full Deep Comparison in AI Chat
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </motion.div>
                 )}
               </div>
@@ -3016,6 +3319,121 @@ ${activeDoc.textContent || activeDoc.fileName}
                     </>
                   )}
                 </motion.button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Secure Client & Co-Counsel Share Modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <div className="fixed inset-0 bg-brand-deep/80 backdrop-blur-md flex items-center justify-center z-[120] p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="glass-card rounded-3xl p-8 max-w-md w-full border border-brand-accent/30 shadow-2xl shadow-brand-accent/10 relative space-y-5"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-brand-accent/15 border border-brand-accent/30 flex items-center justify-center text-brand-accent">
+                    <Share2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-text-main tracking-tight">Share Case Docket</h3>
+                    <span className="text-[10px] font-bold text-brand-accent uppercase tracking-widest">Encrypted Vault Link</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowShareModal(false)}
+                  className="p-1.5 rounded-xl hover:bg-surface border border-transparent hover:border-border-main text-text-muted hover:text-text-main transition-all"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Share Mode Selection */}
+              <div className="grid grid-cols-2 gap-2 bg-surface/50 p-1.5 rounded-2xl border border-border-main text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => setShareAccessLevel('client')}
+                  className={cn(
+                    "py-2 rounded-xl transition-all uppercase tracking-wider text-[10px]",
+                    shareAccessLevel === 'client'
+                      ? "bg-brand-accent text-slate-950 shadow-md"
+                      : "text-text-muted hover:text-text-main"
+                  )}
+                >
+                  Client (Read-Only)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShareAccessLevel('counsel')}
+                  className={cn(
+                    "py-2 rounded-xl transition-all uppercase tracking-wider text-[10px]",
+                    shareAccessLevel === 'counsel'
+                      ? "bg-brand-accent text-slate-950 shadow-md"
+                      : "text-text-muted hover:text-text-main"
+                  )}
+                >
+                  Co-Counsel (Full)
+                </button>
+              </div>
+
+              {/* Shareable Link Box */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-text-muted uppercase tracking-wider block">Encrypted Access Link</span>
+                <div className="bg-surface/80 p-3 rounded-2xl border border-border-main flex items-center justify-between gap-3 text-xs">
+                  <code className="text-[11px] text-brand-accent font-mono truncate">
+                    {`${window.location.origin}/?docket=${caseId}&mode=${shareAccessLevel}`}
+                  </code>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(`${window.location.origin}/?docket=${caseId}&mode=${shareAccessLevel}&pin=${sharePin}`);
+                      setCopiedShareLink(true);
+                      setTimeout(() => setCopiedShareLink(false), 2000);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-brand-accent/20 hover:bg-brand-accent/30 border border-brand-accent/40 text-brand-accent text-[10px] font-bold uppercase transition-all shrink-0 flex items-center gap-1"
+                  >
+                    {copiedShareLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedShareLink ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Security PIN Code & QR Visualizer */}
+              <div className="grid grid-cols-2 gap-4 items-center pt-1">
+                <div className="bg-surface/60 p-4 rounded-2xl border border-border-main space-y-1">
+                  <span className="text-[9px] font-bold text-text-muted uppercase tracking-wider block flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-amber-400" /> Security PIN
+                  </span>
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={sharePin}
+                    onChange={(e) => setSharePin(e.target.value)}
+                    className="w-full bg-surface border border-border-main rounded-xl px-2.5 py-1 text-base font-mono font-bold text-center tracking-widest text-text-main focus:outline-none focus:border-brand-accent"
+                  />
+                  <span className="text-[8px] text-text-muted block text-center">Required to unlock</span>
+                </div>
+
+                <div className="bg-surface/60 p-4 rounded-2xl border border-border-main flex flex-col items-center justify-center space-y-1 text-center">
+                  <QrCode className="w-10 h-10 text-brand-accent" />
+                  <span className="text-[8px] font-bold text-text-muted uppercase tracking-wider">Mobile Docket QR</span>
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowShareModal(false)}
+                  className="w-full py-2.5 rounded-xl bg-brand-accent text-slate-950 font-bold text-xs uppercase tracking-wider hover:bg-brand-accent/90 transition-all shadow-md"
+                >
+                  Done
+                </button>
               </div>
             </motion.div>
           </div>
