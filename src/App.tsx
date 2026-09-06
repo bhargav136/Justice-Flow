@@ -359,10 +359,13 @@ function AppContent() {
                 </motion.div>
               )}
 
-              <button
+              <motion.button
                 type="submit"
                 disabled={isAuthenticating}
-                className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg shadow-brand-primary/10"
+                whileHover={{ scale: 1.02, boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)' }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 17 }}
+                className="w-full bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold py-4 px-6 rounded-xl transition-all flex items-center justify-center gap-3 disabled:opacity-50 shadow-lg shadow-brand-primary/10 cursor-pointer"
               >
                 {isAuthenticating ? (
                   <motion.div
@@ -376,18 +379,21 @@ function AppContent() {
                     Authorize Session
                   </>
                 )}
-              </button>
+              </motion.button>
 
-              <button
+              <motion.button
                 type="button"
+                whileHover={{ scale: 1.01, backgroundColor: 'rgba(255, 255, 255, 0.08)' }}
+                whileTap={{ scale: 0.97 }}
+                transition={{ type: 'spring', stiffness: 400, damping: 17 }}
                 onClick={() => {
                   setJudicialId('judge@justiceflow.gov');
                   setSecurityPin('Justice2026!');
                 }}
-                className="w-full border border-border-main hover:bg-surface/50 text-text-muted font-medium py-3 px-6 rounded-xl transition-all text-[10px] uppercase tracking-widest"
+                className="w-full border border-border-main text-text-muted hover:text-text-main font-medium py-3 px-6 rounded-xl transition-all text-[10px] uppercase tracking-widest cursor-pointer"
               >
                 Use Demo Credentials
-              </button>
+              </motion.button>
             </form>
           </div>
 

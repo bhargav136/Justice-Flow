@@ -71,12 +71,139 @@ body {
   @apply bg-border-main rounded-full hover:bg-brand-accent/50 transition-colors;
 }
 
-/* Tactile button click feedback & animations */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* ─── Keyframe Animations ─── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(20px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes bounceIn {
+  0%   { transform: scale(0.85); opacity: 0; }
+  55%  { transform: scale(1.05); opacity: 1; }
+  75%  { transform: scale(0.97); }
+  100% { transform: scale(1); }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0px rgba(79, 70, 229, 0); }
+  50%       { box-shadow: 0 0 22px rgba(79, 70, 229, 0.55); }
+}
+
+@keyframes glow-pulse-cyan {
+  0%, 100% { box-shadow: 0 0 0px rgba(6, 182, 212, 0); }
+  50%       { box-shadow: 0 0 18px rgba(6, 182, 212, 0.5); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-8px); }
+}
+
+@keyframes ripple-out {
+  from { transform: scale(0); opacity: 0.5; }
+  to   { transform: scale(3); opacity: 0; }
+}
+
+@keyframes click-pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+}
+
+/* ─── Animation Utility Classes ─── */
+.animate-fade-in-up   { animation: fadeInUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-slide-in-right { animation: slideInRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-bounce-in    { animation: bounceIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.animate-float        { animation: float 2.8s ease-in-out infinite; }
+.animate-glow-pulse   { animation: glow-pulse 2s ease-in-out infinite; }
+.animate-glow-cyan    { animation: glow-pulse-cyan 2s ease-in-out infinite; }
+
+/* ─── Button Utility Classes ─── */
+.btn-primary {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+         bg-brand-primary text-white font-semibold text-sm
+         shadow-lg shadow-brand-primary/20
+         hover:brightness-110 hover:shadow-brand-primary/40
+         active:scale-95 active:brightness-95
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/70
+         disabled:opacity-40 disabled:pointer-events-none
+         transition-all duration-150;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+         bg-surface border border-border-main text-text-main font-semibold text-sm
+         hover:bg-brand-accent/10 hover:border-brand-accent/50 hover:text-brand-accent
+         active:scale-95
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40
+         disabled:opacity-40 disabled:pointer-events-none
+         transition-all duration-150;
+}
+
+.btn-danger {
+  @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl
+         bg-red-500 text-white font-semibold text-sm
+         shadow-lg shadow-red-500/20
+         hover:bg-red-600 hover:shadow-red-500/40
+         active:scale-95
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/70
+         disabled:opacity-40 disabled:pointer-events-none
+         transition-all duration-150;
+}
+
+.btn-ghost {
+  @apply inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl
+         text-text-muted font-medium text-sm
+         hover:bg-surface hover:text-text-main
+         active:scale-95
+         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-border-main
+         disabled:opacity-40 disabled:pointer-events-none
+         transition-all duration-150;
+}
+
+/* ─── Card Hover Lift ─── */
+.card-hover {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  @apply shadow-2xl;
+}
+
+/* ─── Input Focus Glow ─── */
+.input-glow:focus {
+  @apply outline-none ring-2 ring-brand-accent/50 border-brand-accent;
+}
+
+/* ─── Shimmer Loading Skeleton ─── */
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* ─── Tactile button feedback ─── */
 button:not(:disabled),
 [role="button"]:not(:disabled) {
   cursor: pointer;
   user-select: none;
-  transition: transform 0.15s cubic-bezier(0.2, 0, 0, 1), box-shadow 0.15s ease, filter 0.15s ease;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1),
+              box-shadow 0.15s ease,
+              filter 0.15s ease,
+              background-color 0.15s ease;
 }
 
 button:not(:disabled):active,
@@ -85,19 +212,16 @@ button:not(:disabled):active,
   filter: brightness(0.95);
 }
 
-@keyframes click-pop {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(0.92);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
 .btn-bounce:active {
   animation: click-pop 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* ─── Mobile: Minimum touch targets ─── */
+@media (max-width: 640px) {
+  button:not(.btn-xs),
+  [role="button"]:not(.btn-xs) {
+    min-height: 40px;
+  }
+}
+
 
