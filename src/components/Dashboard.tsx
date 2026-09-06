@@ -37,6 +37,7 @@ export default function Dashboard({ onSelectCase }: DashboardProps) {
   const [editingCase, setEditingCase] = useState<Case | null>(null);
   const [newCaseTitle, setNewCaseTitle] = useState('');
   const [newCaseDescription, setNewCaseDescription] = useState('');
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'open' | 'closed'>(() => {
     try {
       const saved = localStorage.getItem('justiceflow_dashboard_filter');
